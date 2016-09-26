@@ -204,13 +204,13 @@ namespace Jurassic
         /// <summary>
         /// Populates the error object stack trace, if the error object is an Error.
         /// </summary>
-        internal void PopulateStackTrace()
+        internal void PopulateStackTrace(bool overrideStack = false)
         {
             // Ensure the error object is an Error or derived instance.
             var errorObject = this.ErrorObject as ErrorInstance;
             if (errorObject == null)
                 return;
-            errorObject.SetStackTrace(this.SourcePath, this.FunctionName, this.LineNumber);
+            errorObject.SetStackTrace(this.SourcePath, this.FunctionName, this.LineNumber, overrideStack);
         }
     }
 }
