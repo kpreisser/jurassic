@@ -154,6 +154,7 @@
     <Compile Include="Library\Function\ClrStubFunction.cs" />
     <Compile Include="Library\Function\FunctionConstructor.g.cs" />
     <Compile Include="Library\Function\FunctionInstance.g.cs" />
+    <Compile Include="Library\Function\NativeFunction.cs" />
     <Compile Include="Library\Function\ThrowTypeErrorFunction.cs" />
     <Compile Include="Library\GlobalObject.g.cs" />
     <Compile Include="Library\JSON\JSONObject.g.cs" />
