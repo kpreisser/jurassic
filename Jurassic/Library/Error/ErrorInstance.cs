@@ -9,6 +9,7 @@ namespace Jurassic.Library
     /// </summary>
     public partial class ErrorInstance : ObjectInstance
     {
+        private bool stackAlreadySet = false;
 
         //     INITIALIZATION
         //_________________________________________________________________________________________
@@ -102,6 +103,10 @@ namespace Jurassic.Library
         /// <param name="line"> The line number of the statement that is currently executing. </param>
         internal void SetStackTrace(string path, string function, int line)
         {
+            if (stackAlreadySet)
+                return;
+
+            stackAlreadySet = true;
             var stackTrace = this.Engine.FormatStackTrace(this.Name, this.Message, path, function, line);
             this.FastSetProperty("stack", stackTrace, PropertyAttributes.FullAccess);
         }
