@@ -124,7 +124,7 @@ namespace Jurassic.Library
 
             this.Engine.PushStackFrame("native", DisplayName, 0);
             try
-                {
+            {
                 return this.callBinder(this.Engine, constructBinder != null ? this : thisObject, argumentValues);
             }
             finally
