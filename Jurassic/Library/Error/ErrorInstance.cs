@@ -99,8 +99,7 @@ namespace Jurassic.Library
                 {
                     result.Append(": ");
                     result.Append(this.Message);
-                }
-                result.AppendLine();           
+                }        
                 
                 return result.ToString() + TypeConverter.ToString(this["stack"]);
             }
