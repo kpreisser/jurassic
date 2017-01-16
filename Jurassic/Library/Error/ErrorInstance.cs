@@ -92,7 +92,18 @@ namespace Jurassic.Library
         /// </summary>
         public string Stack
         {
-            get { return TypeConverter.ToString(this["stack"]); }
+            get
+            {
+                StringBuilder result = new StringBuilder(this.Name);
+                if (string.IsNullOrEmpty(this.Message) == false)
+                    {
+                    result.Append(": ");
+                    result.Append(this.Message);
+                }
+                result.AppendLine();           
+                
+                return result.ToString() + TypeConverter.ToString(this["stack"]);
+            }
         }
 
         /// <summary>
@@ -108,7 +119,7 @@ namespace Jurassic.Library
                 return;
 
             stackAlreadySet = true;
-            var stackTrace = this.Engine.FormatStackTrace(this.Name, this.Message, path, function, line);
+            var stackTrace = this.Engine.FormatStackTrace(null, null, path, function, line);
             this.FastSetProperty("stack", stackTrace, PropertyAttributes.FullAccess);
         }
 
