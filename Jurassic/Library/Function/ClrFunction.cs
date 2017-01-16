@@ -173,15 +173,19 @@ namespace Jurassic.Library
                 else
                     thisObject = TypeConverter.ToObject(this.Engine, thisObject);
             }
-
-            this.Engine.PushStackFrame("native", DisplayName, 0);
             try
             {
                 return this.callBinder.Call(this.Engine, thisBinding != null ? thisBinding : thisObject, arguments);
             }
-            finally
+            catch (JavaScriptException ex)
             {
-                this.Engine.PopStackFrame();
+                if (ex.FunctionName == null && ex.SourcePath == null && ex.LineNumber == 0)
+                {
+                    ex.FunctionName = this.DisplayName;
+                    ex.SourcePath = "native";
+                    ex.PopulateStackTrace();
+                }
+                throw;
             }
         }
 
