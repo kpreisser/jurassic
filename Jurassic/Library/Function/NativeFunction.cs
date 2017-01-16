@@ -57,19 +57,15 @@
                 else
                     thisObject = TypeConverter.ToObject(this.Engine, thisObject);
             }
+
+            this.Engine.PushStackFrame("native", DisplayName, 0);
             try
             {
                 return this.CallLateBoundCore(thisObject, argumentValues);
             }
-            catch (JavaScriptException ex)
+            finally
             {
-                if (ex.FunctionName == null && ex.SourcePath == null && ex.LineNumber == 0)
-                {
-                    ex.FunctionName = this.DisplayName;
-                    ex.SourcePath = "native";
-                    ex.PopulateStackTrace(true);
-                }
-                throw;
+                this.Engine.PopStackFrame();
             }
         }
 
