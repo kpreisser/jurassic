@@ -1237,11 +1237,15 @@ namespace Jurassic
         /// <param name="line"> The line number of the statement that is currently executing. </param>
         internal string FormatStackTrace(string errorName, string message, string path, string function, int line)
         {
-            var result = new System.Text.StringBuilder(errorName);
-            if (string.IsNullOrEmpty(message) == false)
+            var result = new System.Text.StringBuilder();
+            if (errorName != null)
             {
-                result.Append(": ");
-                result.Append(message);
+                result.Append(errorName);
+                if (string.IsNullOrEmpty(message) == false)
+                {
+                    result.Append(": ");
+                    result.Append(message);
+                }
             }
             if (path != null || function != null || line != 0)
                 AppendStackFrame(result, path, function, line);
