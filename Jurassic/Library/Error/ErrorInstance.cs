@@ -95,7 +95,7 @@ namespace Jurassic.Library
             {
                 StringBuilder result = new StringBuilder(this.Name);
                 if (string.IsNullOrEmpty(this.Message) == false)
-                    {
+                {
                     result.Append(": ");
                     result.Append(this.Message);
                 }
