@@ -61,7 +61,8 @@
             // TODO: The CallType specifies the type of the next method call, but we push the stack frame
             // immediately since we don't have a line number for native methods and this makes constructing
             // Error objects easier since they will already contain the correct stack. However, if the
-            // native method calls a constructur function, the calltype will bei incorrect.
+            // native method calls a constructor function, the calltype will bei incorrect.
+            // To fix this, we would need to somehow allow to modify the current stack frame.
             this.Engine.PushStackFrame("native", DisplayName, 0, ScriptEngine.CallType.MethodCall);
             try
             {
