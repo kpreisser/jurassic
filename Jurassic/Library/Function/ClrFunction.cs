@@ -179,11 +179,13 @@ namespace Jurassic.Library
             }
             catch (JavaScriptException ex)
             {
-                if (ex.FunctionName == null && ex.SourcePath == null && ex.LineNumber == 0)
+                if ((ex.ErrorObject as ErrorInstance)?.topStackFrameAlreadySet == false
+                    && ex.FunctionName == null && ex.SourcePath == null && ex.LineNumber == 0)
                 {
                     ex.FunctionName = this.DisplayName;
                     ex.SourcePath = "native";
                     ex.PopulateStackTrace(true);
+                    (ex.ErrorObject as ErrorInstance).topStackFrameAlreadySet = true;
                 }
                 throw;
             }

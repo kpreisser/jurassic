@@ -5,6 +5,8 @@
     /// </summary>
     public abstract class NativeFunction : FunctionInstance
     {
+        private readonly bool producesStackFrame;
+
         /// <summary>
         /// 
         /// </summary>
@@ -24,9 +26,11 @@
         /// <param name="name"></param>
         /// <param name="argumentsLength"></param>
         public NativeFunction(ObjectInstance prototype, ObjectInstance instancePrototype,
-            string name, int argumentsLength)
+            string name, int argumentsLength, bool producesStackFrame = true)
             : base(prototype)
         {
+            this.producesStackFrame = producesStackFrame;
+
             // Set function properties.
             this.DefineProperty("name", new PropertyDescriptor(
                 name, PropertyAttributes.Configurable), true);
@@ -63,14 +67,25 @@
             // Error objects easier since they will already contain the correct stack. However, if the
             // native method calls a constructor function, the calltype will bei incorrect.
             // To fix this, we would need to somehow allow to modify the current stack frame.
-            this.Engine.PushStackFrame("native", DisplayName, 0, ScriptEngine.CallType.MethodCall);
+            if (this.producesStackFrame)
+                this.Engine.PushStackFrame("native", DisplayName, 0, ScriptEngine.CallType.MethodCall);
             try
             {
                 return this.CallLateBoundCore(thisObject, argumentValues);
             }
+            catch (JavaScriptException ex)
+            {
+                // Because we pushed a stack frame, the top stack frame of the error object must
+                // already have been set.
+                if (this.producesStackFrame && 
+                        (ex.ErrorObject as ErrorInstance)?.topStackFrameAlreadySet == false)
+                    (ex.ErrorObject as ErrorInstance).topStackFrameAlreadySet = true;
+                throw;
+            }
             finally
             {
-                this.Engine.PopStackFrame();
+                if (this.producesStackFrame)
+                    this.Engine.PopStackFrame();
             }
         }
 
