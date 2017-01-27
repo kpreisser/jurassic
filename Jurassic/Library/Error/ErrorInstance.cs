@@ -11,12 +11,6 @@ namespace Jurassic.Library
     {
         private bool stackAlreadySet = false;
 
-        /// <summary>
-        /// Specifies if the top stack frame has already been set for the stack trace.
-        /// </summary>
-        internal bool topStackFrameAlreadySet { get; set; }
-
-
         //     INITIALIZATION
         //_________________________________________________________________________________________
 

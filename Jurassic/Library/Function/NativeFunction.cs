@@ -25,6 +25,7 @@
         /// <param name="instancePrototype"></param>
         /// <param name="name"></param>
         /// <param name="argumentsLength"></param>
+        /// <param name="producesStackFrame"></param>
         public NativeFunction(ObjectInstance prototype, ObjectInstance instancePrototype,
             string name, int argumentsLength, bool producesStackFrame = true)
             : base(prototype)
@@ -72,15 +73,6 @@
             try
             {
                 return this.CallLateBoundCore(thisObject, argumentValues);
-            }
-            catch (JavaScriptException ex)
-            {
-                // Because we pushed a stack frame, the top stack frame of the error object must
-                // already have been set.
-                if (this.producesStackFrame && 
-                        (ex.ErrorObject as ErrorInstance)?.topStackFrameAlreadySet == false)
-                    (ex.ErrorObject as ErrorInstance).topStackFrameAlreadySet = true;
-                throw;
             }
             finally
             {

@@ -13,6 +13,7 @@ namespace Jurassic.Library
     /// </summary>
     public class ClrFunction : FunctionInstance
     {
+        private readonly bool producesStackFrame;
         object thisBinding;
         private Binder callBinder;
         private Binder constructBinder;
@@ -123,9 +124,12 @@ namespace Jurassic.Library
         /// the same name). </param>
         /// <param name="length"> The "typical" number of arguments expected by the function.  Pass
         /// <c>-1</c> to use the maximum of arguments expected by any of the provided methods. </param>
-        internal ClrFunction(ObjectInstance prototype, IEnumerable<JSBinderMethod> methods, string name = null, int length = -1)
+        /// <param name="producesStackFrame"></param>
+        internal ClrFunction(ObjectInstance prototype, IEnumerable<JSBinderMethod> methods, string name = null, int length = -1,
+                bool producesStackFrame = true)
             : base(prototype)
         {
+            this.producesStackFrame = producesStackFrame;
             this.callBinder = new JSBinder(methods);
 
             // Add function properties.
@@ -173,21 +177,18 @@ namespace Jurassic.Library
                 else
                     thisObject = TypeConverter.ToObject(this.Engine, thisObject);
             }
+            
+            // TODO: Check how to procede with the call type.
+            if (this.producesStackFrame)
+                this.Engine.PushStackFrame("native", DisplayName, 0, ScriptEngine.CallType.MethodCall);
             try
             {
                 return this.callBinder.Call(this.Engine, thisBinding != null ? thisBinding : thisObject, arguments);
             }
-            catch (JavaScriptException ex)
+            finally
             {
-                if ((ex.ErrorObject as ErrorInstance)?.topStackFrameAlreadySet == false
-                    && ex.FunctionName == null && ex.SourcePath == null && ex.LineNumber == 0)
-                {
-                    ex.FunctionName = this.DisplayName;
-                    ex.SourcePath = "native";
-                    ex.PopulateStackTrace(true);
-                    (ex.ErrorObject as ErrorInstance).topStackFrameAlreadySet = true;
-                }
-                throw;
+                if (this.producesStackFrame)
+                    this.Engine.PopStackFrame();
             }
         }
 
