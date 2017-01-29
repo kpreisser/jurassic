@@ -93,7 +93,7 @@ namespace Attribute_Code_Generation
                         {
                             output.AppendLine($"\t\t\t\tnew PropertyNameAndValue({methodGroup.PropertyKey}, " +
                                     $"new ClrStubFunction(engine.FunctionInstancePrototype, \"{methodGroup.FunctionName}\", " +
-                                    $"{methodGroup.JSLength}, {methodGroup.StubName}), {methodGroup.JSPropertyAttributes}),");
+                                    $"{methodGroup.JSLength}, {methodGroup.StubName}{(methodGroup.ProducesStackFrame == null ? "" : (", " + (methodGroup.ProducesStackFrame.Value ? "true" : "false")))}), {methodGroup.JSPropertyAttributes}),");
                         }
                         output.AppendLine("\t\t\t};");
                         output.AppendLine("\t\t}");
@@ -229,6 +229,7 @@ namespace Attribute_Code_Generation
                 RequiredArgumentCount = this.First().RequiredArgumentCount;
                 if (!this.All(m => m.RequiredArgumentCount == RequiredArgumentCount))
                     throw new InvalidOperationException($"All {FunctionName} methods must all have the same RequiredArgumentCount.");
+                this.ProducesStackFrame = this.First().ProducesStackFrame;
             }
 
             public string MethodName { get; private set; }
@@ -239,6 +240,7 @@ namespace Attribute_Code_Generation
             public string StubName { get; private set; }
             public bool IsStatic { get; private set; }
             public int RequiredArgumentCount { get; private set; }
+            public bool? ProducesStackFrame { get; }
         }
 
         public class JSMethod
@@ -255,6 +257,16 @@ namespace Attribute_Code_Generation
                     att.Name.ToString() == "JSCallFunction" ||
                     att.Name.ToString() == "JSConstructorFunction");
 
+                var producesStackFrameParameter = jsAttribute?.ArgumentList?.Arguments.SingleOrDefault(arg =>
+                    arg.NameEquals?.Name.ToString() == "ProducesStackFrame");
+                if (producesStackFrameParameter != null)
+                {
+                    var exprStr = producesStackFrameParameter.Expression.ToFullString();
+                    if (exprStr == "true")
+                        this.ProducesStackFrame = true;
+                    else if (exprStr == "false")
+                        this.ProducesStackFrame = false;
+                }
                 var flagsParameter = jsAttribute?.ArgumentList?.Arguments.SingleOrDefault(arg =>
                     arg.NameEquals != null && arg.NameEquals.Name.ToString() == "Flags");
                 if (flagsParameter != null)
@@ -362,6 +374,7 @@ namespace Attribute_Code_Generation
             public string FunctionName { get; private set; }
             public int JSLength { get; private set; }
             public string JSPropertyAttributes { get; private set; }
+            public bool? ProducesStackFrame { get; }
             public string ReturnType { get; private set; }
             public IEnumerable<MethodParameter> Parameters { get; private set; }
         }

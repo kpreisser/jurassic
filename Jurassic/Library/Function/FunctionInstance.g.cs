@@ -14,7 +14,6 @@ namespace Jurassic.Library
 		{
 			return new List<PropertyNameAndValue>(8)
 			{
-                // TODO: Check how to run the Attribute Code Generation for this!
 				new PropertyNameAndValue("apply", new ClrStubFunction(engine.FunctionInstancePrototype, "apply", 2, __STUB__Apply, false), PropertyAttributes.NonEnumerable),
 				new PropertyNameAndValue("call", new ClrStubFunction(engine.FunctionInstancePrototype, "call", 1, __STUB__Call, false), PropertyAttributes.NonEnumerable),
 				new PropertyNameAndValue("bind", new ClrStubFunction(engine.FunctionInstancePrototype, "bind", 1, __STUB__Bind), PropertyAttributes.NonEnumerable),
