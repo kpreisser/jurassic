@@ -29,6 +29,7 @@ namespace Jurassic.Compiler
             this.Source = source;
             this.Options = options;
             this.StrictMode = this.Options.ForceStrictMode;
+            this.GenerateCancellationChecks = this.Options.GenerateCancellationChecks;
         }
 
         /// <summary>
@@ -62,6 +63,12 @@ namespace Jurassic.Compiler
         /// Gets a value that indicates whether strict mode is enabled.
         /// </summary>
         public bool StrictMode
+        {
+            get;
+            protected set;
+        }
+
+        public bool GenerateCancellationChecks
         {
             get;
             protected set;
@@ -173,6 +180,7 @@ namespace Jurassic.Compiler
             var optimizationInfo = new OptimizationInfo(this.Engine);
             optimizationInfo.AbstractSyntaxTree = this.AbstractSyntaxTree;
             optimizationInfo.StrictMode = this.StrictMode;
+            optimizationInfo.GenerateCancellationChecks = this.GenerateCancellationChecks;
             optimizationInfo.MethodOptimizationHints = this.MethodOptimizationHints;
             optimizationInfo.FunctionName = this.GetStackName();
             optimizationInfo.Source = this.Source;

@@ -25,6 +25,15 @@ namespace Jurassic.Compiler
         }
 
         /// <summary>
+        /// Gets or sets a value that indicates whether checks for script cancellation shall be generated.
+        /// </summary>
+        public bool GenerateCancellationChecks
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
         /// Gets or sets a value which indicates whether debug information should be generated.  If
         /// this is set to <c>true</c> performance and memory usage are negatively impacted.  The
         /// default is <c>false</c>.

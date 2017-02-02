@@ -48,6 +48,15 @@ namespace Jurassic.Compiler
             set;
         }
 
+        /// <summary>
+        /// Gets or sets a value that indicates whether checks for script cancellation shall be generated.
+        /// </summary>
+        public bool GenerateCancellationChecks
+        {
+            get;
+            set;
+        }
+
 
 
         //     DEBUGGING

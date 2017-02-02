@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using Jurassic.Library;
 
 namespace Jurassic
@@ -10,6 +11,12 @@ namespace Jurassic
     /// </summary>
     public sealed class ScriptEngine
     {
+        // If a script cancellation has been requested.
+        private byte cancellationRequested;
+
+        // If a ScriptCancelledException has already been thrown.
+        private bool scriptCancelledExceptionThrown;
+
         // Compatibility mode.
         private CompatibilityMode compatibilityMode;
 
@@ -189,11 +196,49 @@ namespace Jurassic
         //_________________________________________________________________________________________
 
         /// <summary>
+        /// Gets or sets a value that indicates if the current script execution should be cancelled.
+        /// When set to <c>true</c> from another thread while script code is executing, a
+        /// <see cref="ScriptCancelledException"/> will be thrown as soon as possible to stop the script.
+        /// </summary>
+        /// <remarks>This requires that <see cref="GenerateCancellationChecks"/> has been set to true when
+        /// compiling the script.</remarks>
+        public bool CancellationRequested
+        {
+            get
+            {
+                return Thread.VolatileRead(ref this.cancellationRequested) != 0;
+            }
+            set
+            {
+                Thread.VolatileWrite(ref this.cancellationRequested, (byte)(value ? 1 : 0));
+                if (!value)
+                    scriptCancelledExceptionThrown = false;
+            }
+        }
+
+        /// <summary>
+        /// Gets a value that indicates if a <see cref="ScriptCancelledException"/> has been thrown.
+        /// This field is only public for technical reasons and should not be used in application code.
+        /// </summary>
+        public bool ScriptCancelledExceptionThrown => this.scriptCancelledExceptionThrown;
+
+        /// <summary>
         /// Gets or sets a value that indicates whether to force ECMAScript 5 strict mode, even if
         /// the code does not contain a strict mode directive ("use strict").  The default is
         /// <c>false</c>.
         /// </summary>
         public bool ForceStrictMode
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Gets or sets a value that indicates whether checks for script cancellation shall be generated.
+        /// This allows you to cancel the current script execution by setting
+        /// <see cref="CancellationRequested"/> to <c>true</c> from another thread.
+        /// </summary>
+        public bool GenerateCancellationChecks
         {
             get;
             set;
@@ -884,7 +929,12 @@ namespace Jurassic
         /// <returns> A populated CompilerOptions instance. </returns>
         private Compiler.CompilerOptions CreateOptions()
         {
-            return new Compiler.CompilerOptions() { ForceStrictMode = this.ForceStrictMode, EnableDebugging = this.EnableDebugging };
+            return new Compiler.CompilerOptions()
+            {
+                ForceStrictMode = this.ForceStrictMode,
+                GenerateCancellationChecks = this.GenerateCancellationChecks,
+                EnableDebugging = this.EnableDebugging
+            };
         }
 
 
@@ -1360,6 +1410,24 @@ namespace Jurassic
                 if (this.staticTypeWrapperCache == null)
                     this.staticTypeWrapperCache = new Dictionary<Type, ClrStaticTypeWrapper>();
                 return this.staticTypeWrapperCache;
+            }
+        }
+
+
+        //     SCRIPT CANCELLACTION
+        //_________________________________________________________________________________________
+
+        /// <summary>
+        /// Checks whether script cancellation has been requested, and throws a
+        /// <see cref="ScriptCancelledException"/> in that case.
+        /// </summary>
+        /// <exception cref="ScriptCancelledException">When cancellation has been requested</exception>
+        public void CheckCancellationRequest()
+        {
+            if (Thread.VolatileRead(ref this.cancellationRequested) != 0)
+            {
+                this.scriptCancelledExceptionThrown = true;
+                throw new ScriptCancelledException("Script execution has been cancelled.");
             }
         }
     }
