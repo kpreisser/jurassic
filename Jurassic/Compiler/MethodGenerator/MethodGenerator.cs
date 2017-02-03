@@ -316,13 +316,22 @@ namespace Jurassic.Compiler
             generator.StoreVariable(returnValue);
 
             generator.BeginFilterBlock();
-            // The exception object is on top of the stack, but we don't use it.
-            generator.Pop();
+            // Check if the method would have caught the exception if it contained a catch block.
+            // I.e., we check if the exception is a JavaScriptException here. In that case
+            // we don't set the isUncatchableExceptionVariable variable, so that finally handlers
+            // can run. (Even if the method didn't catch a JavaScriptException, the calling method
+            // might catch it).
+            // This check needs to coincide with the check in the TryCatchFinallyStatement.
+            generator.IsInstance(typeof(JavaScriptException));
+            var endOfChek = generator.CreateLabel();
+            generator.BranchIfNotNull(endOfChek);
+            
             // Indicate to the finally handlers that they shouldn't execute.
             generator.LoadBoolean(true);
             generator.StoreVariable(isUncatchableExceptionVariable);
+            generator.DefineLabelPosition(endOfChek);
 
-            // Indicate that we don't want to handle the exception.
+            // Indicate that we don't want to catch the exception.
             generator.LoadInt32(0);
             generator.BeginCatchBlock(null);
             // Pop the exception object off the stack, but don't do anything else
