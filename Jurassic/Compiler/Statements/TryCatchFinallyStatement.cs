@@ -106,9 +106,12 @@ namespace Jurassic.Compiler
                 generator.BeginFilterBlock();
                 generator.IsInstance(typeof(JavaScriptException));
                 generator.Duplicate();
+                var exceptionVariable = generator.CreateTemporaryVariable(typeof(JavaScriptException));
+                generator.StoreVariable(exceptionVariable);
                 generator.BranchIfNull(exceptionIsNull);
 
                 // Check if the exception's ScriptEngine is correct.
+                generator.LoadVariable(exceptionVariable);
                 generator.CallVirtual(ReflectionHelpers.JavaScriptException_ScriptEngine);
                 EmitHelpers.LoadScriptEngine(generator);
                 generator.BranchIfNotEqual(exceptionIsNull);
@@ -118,10 +121,10 @@ namespace Jurassic.Compiler
                 generator.Branch(endOfFilter);
 
                 generator.DefineLabelPosition(exceptionIsNull);
-                generator.Pop();
 
                 generator.LoadInt32(0);
                 generator.DefineLabelPosition(endOfFilter);
+                generator.ReleaseTemporaryVariable(exceptionVariable);
 
                 // Begin a catch block.  The exception is on the top of the stack.
                 generator.BeginCatchBlock(null);
@@ -156,17 +159,17 @@ namespace Jurassic.Compiler
                 optimizationInfo.LongJumpStackSizeThreshold = optimizationInfo.BreakOrContinueStackSize;
                 var previousCallback = optimizationInfo.LongJumpCallback;
                 optimizationInfo.LongJumpCallback = (generator2, label) =>
-                    {
-                        // It is not possible to branch out of a finally block - therefore instead of
-                        // generating LEAVE instructions we throw an exception then catch it to transfer
-                        // control out of the finally block.
-                        generator2.LoadInt32(branches.Count);
-                        generator2.NewObject(ReflectionHelpers.LongJumpException_Constructor);
-                        generator2.Throw();
+                {
+                    // It is not possible to branch out of a finally block - therefore instead of
+                    // generating LEAVE instructions we throw an exception then catch it to transfer
+                    // control out of the finally block.
+                    generator2.LoadInt32(branches.Count);
+                    generator2.NewObject(ReflectionHelpers.LongJumpException_Constructor);
+                    generator2.Throw();
 
-                        // Record any branches that are made within the finally code.
-                        branches.Add(label);
-                    };
+                    // Record any branches that are made within the finally code.
+                    branches.Add(label);
+                };
 
                 // If the method's IsUncatchableExceptionVariable was set to true, it means currently an
                 // uncatchable exception has been thrown in the method. In this case, we skip the code
