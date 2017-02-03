@@ -57,6 +57,17 @@ namespace Jurassic.Compiler
             set;
         }
 
+        /// <summary>
+        /// Gets or sets a value that references a local bool variable of the method which indicates
+        /// if an uncatchable exception has been thrown in the current method. This is used to bypass
+        /// code of finally clauses.
+        /// </summary>
+        public ILLocalVariable IsUncatchableExceptionVariable
+        {
+            get;
+            set;
+        }
+
 
 
         //     DEBUGGING

@@ -186,7 +186,7 @@ namespace Jurassic.Compiler
             optimizationInfo.Source = this.Source;
 
             ILGenerator generator;
-            if (this.Options.EnableDebugging == false)
+            if (this.Options.EnableDebugging == true)
             {
                 // DynamicMethod requires full trust because of generator.LoadMethodPointer in the
                 // FunctionExpression class.
@@ -214,7 +214,7 @@ namespace Jurassic.Compiler
                 optimizationInfo.MarkSequencePoint(generator, new SourceCodeSpan(1, 1, 1, 1));
 
                 // Generate the IL.
-                GenerateCode(generator, optimizationInfo);
+                GenerateWrapperCode(generator, optimizationInfo);
                 generator.Complete();
 
                 // Create a delegate from the method.
@@ -278,7 +278,8 @@ namespace Jurassic.Compiler
                     methodBuilder.DefineParameter(3, System.Reflection.ParameterAttributes.None, "thisValue");
                 }
                 optimizationInfo.MarkSequencePoint(generator, new SourceCodeSpan(1, 1, 1, 1));
-                GenerateCode(generator, optimizationInfo);
+
+                GenerateWrapperCode(generator, optimizationInfo);
                 generator.Complete();
 
                 // Bake it.
@@ -293,6 +294,44 @@ namespace Jurassic.Compiler
                 // Store the disassembled IL so it can be retrieved for analysis purposes.
                 this.GeneratedMethod.DisassembledIL = generator.ToString();
             }
+        }
+
+        private void GenerateWrapperCode(ILGenerator generator, OptimizationInfo optimizationInfo)
+        {
+            // Create a local variable that will receive information if an uncatchable exception
+            // has been thrown in the method.
+            var isUncatchableExceptionVariable = generator.DeclareVariable(typeof(bool));
+            var returnValue = generator.DeclareVariable(typeof(object));
+            generator.LoadBoolean(false);
+            generator.StoreVariable(isUncatchableExceptionVariable);
+            optimizationInfo.IsUncatchableExceptionVariable = isUncatchableExceptionVariable;
+
+            // Generate an exception block whose only purpose is to set the
+            // isUncatchableExceptionVariable to true in case an exception occured that will not be
+            // handled by the current method, so that we can skip code in finally blocks after that.
+            generator.BeginExceptionBlock();
+
+            GenerateCode(generator, optimizationInfo);
+            // Store the return value.
+            generator.StoreVariable(returnValue);
+
+            generator.BeginFilterBlock();
+            // The exception object is on top of the stack, but we don't use it.
+            generator.Pop();
+            // Indicate to the finally handlers that they shouldn't execute.
+            generator.LoadBoolean(true);
+            generator.StoreVariable(isUncatchableExceptionVariable);
+
+            // Indicate that we don't want to handle the exception.
+            generator.LoadInt32(0);
+            generator.BeginCatchBlock(null);
+            // Pop the exception object off the stack, but don't do anything else
+            // (this branch is unreachable).
+            generator.Pop();
+            generator.EndExceptionBlock();
+
+            // Load the return value
+            generator.LoadVariable(returnValue);
         }
 
         /// <summary>
