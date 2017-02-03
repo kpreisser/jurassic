@@ -99,8 +99,32 @@ namespace Jurassic.Compiler
             // Generate code for the catch block.
             if (this.CatchBlock != null)
             {
+                // Begin a filter block to check if the JavaScriptException is associated
+                // with the current ScriptEngine.
+                var endOfFilter = generator.CreateLabel();
+                var exceptionIsNull = generator.CreateLabel();
+                generator.BeginFilterBlock();
+                generator.IsInstance(typeof(JavaScriptException));
+                generator.Duplicate();
+                generator.BranchIfNull(exceptionIsNull);
+
+                // Check if the exception's ScriptEngine is correct.
+                generator.CallVirtual(ReflectionHelpers.JavaScriptException_ScriptEngine);
+                EmitHelpers.LoadScriptEngine(generator);
+                generator.BranchIfNotEqual(exceptionIsNull);
+
+                // OK, catch the exception.
+                generator.LoadInt32(1);
+                generator.Branch(endOfFilter);
+
+                generator.DefineLabelPosition(exceptionIsNull);
+                generator.Pop();
+
+                generator.LoadInt32(0);
+                generator.DefineLabelPosition(endOfFilter);
+
                 // Begin a catch block.  The exception is on the top of the stack.
-                generator.BeginCatchBlock(typeof(JavaScriptException));
+                generator.BeginCatchBlock(null);
 
                 // Create a new DeclarativeScope.
                 this.CatchScope.GenerateScopeCreation(generator, optimizationInfo);

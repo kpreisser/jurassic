@@ -120,6 +120,7 @@ namespace Jurassic.Compiler
 
         internal static ConstructorInfo JavaScriptException_Constructor_Error;
         internal static ConstructorInfo JavaScriptException_Constructor_Object;
+        internal static MethodInfo JavaScriptException_ScriptEngine;
         internal static ConstructorInfo UserDefinedFunction_Constructor;
         internal static ConstructorInfo FunctionDelegate_Constructor;
         internal static ConstructorInfo Arguments_Constructor;
@@ -232,6 +233,7 @@ namespace Jurassic.Compiler
 
             JavaScriptException_Constructor_Error = GetConstructor(typeof(JavaScriptException), typeof(ScriptEngine), typeof(ErrorType), typeof(string), typeof(int), typeof(string), typeof(string));
             JavaScriptException_Constructor_Object = GetConstructor(typeof(JavaScriptException), typeof(ScriptEngine), typeof(object), typeof(int), typeof(string), typeof(string));
+            JavaScriptException_ScriptEngine = GetInstanceMethod(typeof(JavaScriptException), "get_" + nameof(JavaScriptException.Engine));
             IEnumerable_String_GetEnumerator = GetInstanceMethod(typeof(IEnumerable<string>), "GetEnumerator");
             IEnumerable_Object_GetEnumerator = GetInstanceMethod(typeof(IEnumerable<object>), "GetEnumerator");
             IEnumerator_MoveNext = GetInstanceMethod(typeof(System.Collections.IEnumerator), "MoveNext");
