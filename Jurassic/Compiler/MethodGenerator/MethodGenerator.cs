@@ -186,7 +186,7 @@ namespace Jurassic.Compiler
             optimizationInfo.Source = this.Source;
 
             ILGenerator generator;
-            if (this.Options.EnableDebugging == true)
+            if (this.Options.EnableDebugging == false)
             {
                 // DynamicMethod requires full trust because of generator.LoadMethodPointer in the
                 // FunctionExpression class.
