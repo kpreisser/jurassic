@@ -231,7 +231,7 @@ namespace Jurassic.Compiler
             ConcatenatedString_ToString = GetInstanceMethod(typeof(ConcatenatedString), "ToString");
 
             JavaScriptException_Constructor_Error = GetConstructor(typeof(JavaScriptException), typeof(ScriptEngine), typeof(ErrorType), typeof(string), typeof(int), typeof(string), typeof(string));
-            JavaScriptException_Constructor_Object = GetConstructor(typeof(JavaScriptException), typeof(object), typeof(int), typeof(string), typeof(string));
+            JavaScriptException_Constructor_Object = GetConstructor(typeof(JavaScriptException), typeof(ScriptEngine), typeof(object), typeof(int), typeof(string), typeof(string));
             IEnumerable_String_GetEnumerator = GetInstanceMethod(typeof(IEnumerable<string>), "GetEnumerator");
             IEnumerable_Object_GetEnumerator = GetInstanceMethod(typeof(IEnumerable<object>), "GetEnumerator");
             IEnumerator_MoveNext = GetInstanceMethod(typeof(System.Collections.IEnumerator), "MoveNext");

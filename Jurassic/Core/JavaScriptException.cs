@@ -20,9 +20,10 @@ namespace Jurassic
         /// <param name="errorObject"> The javascript object that was thrown. </param>
         /// <param name="lineNumber"> The line number in the source file the error occurred on. </param>
         /// <param name="sourcePath"> The path or URL of the source file.  Can be <c>null</c>. </param>
-        public JavaScriptException(object errorObject, int lineNumber, string sourcePath)
+        public JavaScriptException(ScriptEngine engine, object errorObject, int lineNumber, string sourcePath)
             : base(TypeConverter.ToString(errorObject))
         {
+            this.Engine = engine;
             this.ErrorObject = errorObject;
             this.LineNumber = lineNumber;
             this.SourcePath = sourcePath;
@@ -36,9 +37,10 @@ namespace Jurassic
         /// <param name="lineNumber"> The line number in the source file the error occurred on. </param>
         /// <param name="sourcePath"> The path or URL of the source file.  Can be <c>null</c>. </param>
         /// <param name="functionName"> The name of the function.  Can be <c>null</c>. </param>
-        public JavaScriptException(object errorObject, int lineNumber, string sourcePath, string functionName)
+        public JavaScriptException(ScriptEngine engine, object errorObject, int lineNumber, string sourcePath, string functionName)
             : base(TypeConverter.ToString(errorObject))
         {
+            this.Engine = engine;
             this.ErrorObject = errorObject;
             this.LineNumber = lineNumber;
             this.SourcePath = sourcePath;
@@ -55,6 +57,7 @@ namespace Jurassic
         public JavaScriptException(ScriptEngine engine, ErrorType type, string message)
             : base(string.Format("{0}: {1}", type, message))
         {
+            this.Engine = engine;
             this.ErrorObject = CreateError(engine, type, message);
             this.PopulateStackTrace();
         }
@@ -70,6 +73,7 @@ namespace Jurassic
         public JavaScriptException(ScriptEngine engine, ErrorType type, string message, Exception innerException)
             : base(string.Format("{0}: {1}", type, message), innerException)
         {
+            this.Engine = engine;
             this.ErrorObject = CreateError(engine, type, message);
             this.PopulateStackTrace();
         }
@@ -85,6 +89,7 @@ namespace Jurassic
         public JavaScriptException(ScriptEngine engine, ErrorType type, string message, int lineNumber, string sourcePath)
             : base(string.Format("{0}: {1}", type, message))
         {
+            this.Engine = engine;
             this.ErrorObject = CreateError(engine, type, message);
             this.LineNumber = lineNumber;
             this.SourcePath = sourcePath;
@@ -103,6 +108,7 @@ namespace Jurassic
         public JavaScriptException(ScriptEngine engine, ErrorType type, string message, int lineNumber, string sourcePath, string functionName)
             : base(string.Format("{0}: {1}", type, message))
         {
+            this.Engine = engine;
             this.ErrorObject = CreateError(engine, type, message);
             this.LineNumber = lineNumber;
             this.SourcePath = sourcePath;
@@ -114,6 +120,11 @@ namespace Jurassic
 
         //     .NET ACCESSOR PROPERTIES
         //_________________________________________________________________________________________
+
+        /// <summary>
+        /// The <see cref="ScriptEngine"/> associated with this <see cref="JavaScriptException"/>.
+        /// </summary>
+        public ScriptEngine Engine { get; private set; }
 
         /// <summary>
         /// Gets a reference to the JavaScript Error object.

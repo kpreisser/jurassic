@@ -37,6 +37,7 @@ namespace Jurassic.Compiler
             // Generate code for the start of the statement.
             var statementLocals = new StatementLocals();
             GenerateStartOfStatement(generator, optimizationInfo, statementLocals);
+            EmitHelpers.LoadScriptEngine(generator);
 
             // Emit code to throw the given value.
             this.Value.GenerateCode(generator, optimizationInfo);
