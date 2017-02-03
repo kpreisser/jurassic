@@ -156,6 +156,38 @@ namespace Jurassic.Compiler
             }
         }
 
+        /// <summary>
+        /// Pops a <see cref="JavaScriptException"/> from the stack and stores a Int32 on the stack that
+        /// indicates if the exception can be caught from JS code (1; otherwise 0).
+        /// </summary>
+        /// <param name="generator"></param>
+        public static void EmitJavaScriptExceptionFilter(ILGenerator generator)
+        {
+            var endOfFilter = generator.CreateLabel();
+            var exceptionIsNull = generator.CreateLabel();
+            generator.IsInstance(typeof(JavaScriptException));
+            generator.Duplicate();
+            var exceptionVariable = generator.CreateTemporaryVariable(typeof(JavaScriptException));
+            generator.StoreVariable(exceptionVariable);
+            generator.BranchIfNull(exceptionIsNull);
+
+            // Check if the exception's ScriptEngine is correct.
+            generator.LoadVariable(exceptionVariable);
+            generator.CallVirtual(ReflectionHelpers.JavaScriptException_ScriptEngine);
+            EmitHelpers.LoadScriptEngine(generator);
+            generator.BranchIfNotEqual(exceptionIsNull);
+
+            // OK, the exception can be caught.
+            generator.LoadInt32(1);
+            generator.Branch(endOfFilter);
+
+            generator.DefineLabelPosition(exceptionIsNull);
+            generator.LoadInt32(0);
+
+            generator.DefineLabelPosition(endOfFilter);
+            generator.ReleaseTemporaryVariable(exceptionVariable);
+        }
+
 
 
         //     LOAD METHOD PARAMETERS

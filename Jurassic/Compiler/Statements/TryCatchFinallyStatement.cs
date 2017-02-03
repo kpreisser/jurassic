@@ -101,30 +101,10 @@ namespace Jurassic.Compiler
             {
                 // Begin a filter block to check if the JavaScriptException is associated
                 // with the current ScriptEngine.
-                var endOfFilter = generator.CreateLabel();
-                var exceptionIsNull = generator.CreateLabel();
                 generator.BeginFilterBlock();
-                generator.IsInstance(typeof(JavaScriptException));
-                generator.Duplicate();
-                var exceptionVariable = generator.CreateTemporaryVariable(typeof(JavaScriptException));
-                generator.StoreVariable(exceptionVariable);
-                generator.BranchIfNull(exceptionIsNull);
 
-                // Check if the exception's ScriptEngine is correct.
-                generator.LoadVariable(exceptionVariable);
-                generator.CallVirtual(ReflectionHelpers.JavaScriptException_ScriptEngine);
-                EmitHelpers.LoadScriptEngine(generator);
-                generator.BranchIfNotEqual(exceptionIsNull);
-
-                // OK, catch the exception.
-                generator.LoadInt32(1);
-                generator.Branch(endOfFilter);
-
-                generator.DefineLabelPosition(exceptionIsNull);
-
-                generator.LoadInt32(0);
-                generator.DefineLabelPosition(endOfFilter);
-                generator.ReleaseTemporaryVariable(exceptionVariable);
+                // Emit code for the filter block that checks if the exception can be caught.
+                EmitHelpers.EmitJavaScriptExceptionFilter(generator);
 
                 // Begin a catch block.  The exception is on the top of the stack.
                 generator.BeginCatchBlock(null);

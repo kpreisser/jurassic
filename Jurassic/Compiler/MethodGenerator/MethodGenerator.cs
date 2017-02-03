@@ -315,16 +315,19 @@ namespace Jurassic.Compiler
             // Store the return value.
             generator.StoreVariable(returnValue);
 
-            generator.BeginFilterBlock();
             // Check if the method would have caught the exception if it contained a catch block.
             // I.e., we check if the exception is a JavaScriptException here. In that case
             // we don't set the isUncatchableExceptionVariable variable, so that finally handlers
             // can run. (Even if the method didn't catch a JavaScriptException, the calling method
             // might catch it).
             // This check needs to coincide with the check in the TryCatchFinallyStatement.
-            generator.IsInstance(typeof(JavaScriptException));
+            generator.BeginFilterBlock();
+
+            // Emit code for the filter block that checks if the exception could be caught.
+            EmitHelpers.EmitJavaScriptExceptionFilter(generator);
+            
             var endOfChek = generator.CreateLabel();
-            generator.BranchIfNotNull(endOfChek);
+            generator.BranchIfNotZero(endOfChek);
             
             // Indicate to the finally handlers that they shouldn't execute.
             generator.LoadBoolean(true);
