@@ -810,6 +810,11 @@ namespace Jurassic.Compiler
         public abstract void Throw();
 
         /// <summary>
+        /// Rethrows the current exception.
+        /// </summary>
+        public abstract void Rethrow();
+
+        /// <summary>
         /// Begins a try-catch-finally block.  After issuing this instruction any following
         /// instructions are conceptually within the try block.
         /// </summary>

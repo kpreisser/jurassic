@@ -300,6 +300,29 @@ namespace Jurassic.Compiler
             return typeof(Library.FunctionDelegate);
         }
 
+        protected override Delegate WrapGeneratedDelegate(Delegate del)
+        {
+            var func = del as Library.FunctionDelegate;
+            return new Library.FunctionDelegate((engine, scope, thisObj, functionObject, arguments) =>
+            {
+                // Create a marker reference
+                var marker = new bool[1];
+                Engine.CurrentSkipFinallyClausesMarker = marker;
+                try
+                {
+                    return func(engine, scope, thisObj, functionObject, arguments);
+                }
+                // Use an exception filter to check if we need to skip finally statements in the current
+                // method, which is the case if a non-catchable exception (like ScriptCancelledException)
+                // is being thrown.
+                catch (Exception ex) when (FilterException(ex, engine, marker))
+                {
+                    // This branch is never reachable - see FilterException().
+                    throw;
+                }
+            });
+        }
+
         /// <summary>
         /// Generates IL for the script.
         /// </summary>

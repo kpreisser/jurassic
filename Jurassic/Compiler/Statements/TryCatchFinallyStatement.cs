@@ -99,15 +99,26 @@ namespace Jurassic.Compiler
             // Generate code for the catch block.
             if (this.CatchBlock != null)
             {
-                // Begin a filter block to check if the JavaScriptException is associated
-                // with the current ScriptEngine.
-                generator.BeginFilterBlock();
-
-                // Emit code for the filter block that checks if the exception can be caught.
-                EmitHelpers.EmitJavaScriptExceptionFilter(generator);
-
                 // Begin a catch block.  The exception is on the top of the stack.
-                generator.BeginCatchBlock(null);
+                generator.BeginCatchBlock(typeof(JavaScriptException));
+
+                // Check if the exception is actually catchable, and rethrow it otherwise.
+                generator.Duplicate();
+                var exceptionVariable = generator.CreateTemporaryVariable(typeof(Exception));
+                generator.StoreVariable(exceptionVariable);
+                EmitHelpers.LoadScriptEngine(generator);
+                generator.LoadVariable(exceptionVariable);
+                generator.ReleaseTemporaryVariable(exceptionVariable);
+                generator.Call(ReflectionHelpers.ScriptEngine_IsExceptionCatchable);
+                var endOfExceptionCheck = generator.CreateLabel();
+                // Skip the rethrow if the check succeeds.
+                generator.BranchIfTrue(endOfExceptionCheck);
+
+                // The exception is not catchable, so rethrow it.
+                generator.Pop();
+                generator.Rethrow();
+                generator.DefineLabelPosition(endOfExceptionCheck);
+
 
                 // Create a new DeclarativeScope.
                 this.CatchScope.GenerateScopeCreation(generator, optimizationInfo);
@@ -151,11 +162,13 @@ namespace Jurassic.Compiler
                     branches.Add(label);
                 };
 
-                // If the method's IsUncatchableExceptionVariable was set to true, it means currently an
+                // If the method's CurrentSkipFinallyClausesMarker was set to true, it means currently an
                 // uncatchable exception has been thrown in the method. In this case, we skip the code
                 // in the finally clause.
                 var endOfFinally = generator.CreateLabel();
-                generator.LoadVariable(optimizationInfo.IsUncatchableExceptionVariable);
+                generator.LoadVariable(optimizationInfo.CurrentSkipFinallyClausesMarkerVariable);
+                generator.LoadInt32(0);
+                generator.LoadArrayElement(typeof(bool));
                 generator.BranchIfTrue(endOfFinally);
 
                 // Emit code for the finally block.

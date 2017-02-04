@@ -214,11 +214,13 @@ namespace Jurassic.Compiler
                 optimizationInfo.MarkSequencePoint(generator, new SourceCodeSpan(1, 1, 1, 1));
 
                 // Generate the IL.
-                GenerateWrapperCode(generator, optimizationInfo);
+                GenerateInternalCode(generator, optimizationInfo);
                 generator.Complete();
 
                 // Create a delegate from the method.
-                this.GeneratedMethod = new GeneratedMethod(dynamicMethod.CreateDelegate(GetDelegate()), optimizationInfo.NestedFunctions);
+                this.GeneratedMethod = new GeneratedMethod(WrapGeneratedDelegate(
+                    dynamicMethod.CreateDelegate(GetDelegate())),
+                    optimizationInfo.NestedFunctions);
 
             }
             else
@@ -279,13 +281,15 @@ namespace Jurassic.Compiler
                 }
                 optimizationInfo.MarkSequencePoint(generator, new SourceCodeSpan(1, 1, 1, 1));
 
-                GenerateWrapperCode(generator, optimizationInfo);
+                GenerateInternalCode(generator, optimizationInfo);
                 generator.Complete();
 
                 // Bake it.
                 var type = typeBuilder.CreateType();
                 var methodInfo = type.GetMethod(this.GetMethodName());
-                this.GeneratedMethod = new GeneratedMethod(Delegate.CreateDelegate(GetDelegate(), methodInfo), optimizationInfo.NestedFunctions);
+                this.GeneratedMethod = new GeneratedMethod(WrapGeneratedDelegate(
+                    Delegate.CreateDelegate(GetDelegate(), methodInfo)),
+                    optimizationInfo.NestedFunctions);
 #endif //WINDOWS_PHONE
             }
 
@@ -296,54 +300,16 @@ namespace Jurassic.Compiler
             }
         }
 
-        private void GenerateWrapperCode(ILGenerator generator, OptimizationInfo optimizationInfo)
+        private void GenerateInternalCode(ILGenerator generator, OptimizationInfo optimizationInfo)
         {
-            // Create a local variable that will receive information if an uncatchable exception
-            // has been thrown in the method.
-            var isUncatchableExceptionVariable = generator.DeclareVariable(typeof(bool));
-            var returnValue = generator.DeclareVariable(typeof(object));
-            generator.LoadBoolean(false);
-            generator.StoreVariable(isUncatchableExceptionVariable);
-            optimizationInfo.IsUncatchableExceptionVariable = isUncatchableExceptionVariable;
-
-            // Generate an exception block whose only purpose is to set the
-            // isUncatchableExceptionVariable to true in case an exception occured that will not be
-            // handled by the current method, so that we can skip code in finally blocks after that.
-            generator.BeginExceptionBlock();
+            // Create and load the currentSkipFinallyClausesMarker variable from the ScriptEngine.
+            var markerVariable = generator.DeclareVariable(typeof(bool[]));
+            EmitHelpers.LoadScriptEngine(generator);
+            generator.Call(ReflectionHelpers.ScriptEngine_CurrentSkipFinallyClausesMarker);
+            generator.StoreVariable(markerVariable);
+            optimizationInfo.CurrentSkipFinallyClausesMarkerVariable = markerVariable;
 
             GenerateCode(generator, optimizationInfo);
-            // Store the return value.
-            generator.StoreVariable(returnValue);
-
-            // Check if the method would have caught the exception if it contained a catch block.
-            // I.e., we check if the exception is a JavaScriptException here. In that case
-            // we don't set the isUncatchableExceptionVariable variable, so that finally handlers
-            // can run. (Even if the method didn't catch a JavaScriptException, the calling method
-            // might catch it).
-            // This check needs to coincide with the check in the TryCatchFinallyStatement.
-            generator.BeginFilterBlock();
-
-            // Emit code for the filter block that checks if the exception could be caught.
-            EmitHelpers.EmitJavaScriptExceptionFilter(generator);
-            
-            var endOfChek = generator.CreateLabel();
-            generator.BranchIfNotZero(endOfChek);
-            
-            // Indicate to the finally handlers that they shouldn't execute.
-            generator.LoadBoolean(true);
-            generator.StoreVariable(isUncatchableExceptionVariable);
-            generator.DefineLabelPosition(endOfChek);
-
-            // Indicate that we don't want to catch the exception.
-            generator.LoadInt32(0);
-            generator.BeginCatchBlock(null);
-            // Pop the exception object off the stack, but don't do anything else
-            // (this branch is unreachable).
-            generator.Pop();
-            generator.EndExceptionBlock();
-
-            // Load the return value
-            generator.LoadVariable(returnValue);
         }
 
         /// <summary>
@@ -355,11 +321,55 @@ namespace Jurassic.Compiler
 
         /// <summary>
         /// Retrieves a delegate for the generated method.
+        /// Note: If this method is overridden, then
+        /// <see cref="WrapGeneratedDelegate(Func{ScriptEngine, Scope, object, object})"/> should
+        /// also be overridden.
         /// </summary>
         /// <returns> The delegate type that matches the method parameters. </returns>
         protected virtual Type GetDelegate()
         {
             return typeof(Func<ScriptEngine, Scope, object, object>);
+        }
+
+        /// <summary>
+        /// Wraps the generated delegate to create a marker which indicates if finally clauses in the
+        /// current method's invocation should be skipped. This is done by implementing an exception
+        /// filter that sets the marker to <c>true</c> if
+        /// <see cref="ScriptEngine.IsExceptionCatchable(Exception)"/> returns <c>false</c>.
+        /// This is used to prevent finally clauses from running e.g. for <see cref="ScriptCancelledException"/>s.
+        /// </summary>
+        /// <param name="func"></param>
+        /// <returns></returns>
+        protected virtual Delegate WrapGeneratedDelegate(Delegate del)
+        {
+            var func = del as Func<ScriptEngine, Scope, object, object>;
+            return new Func<ScriptEngine, Scope, object, object>((engine, scope, thisObj) =>
+            {
+                // Create a marker reference
+                var marker = new bool[1];
+                Engine.CurrentSkipFinallyClausesMarker = marker;
+                try
+                {
+                    return func(engine, scope, thisObj);
+                }
+                // Use an exception filter to check if we need to skip finally statements in the current
+                // method, which is the case if a non-catchable exception (like ScriptCancelledException) is
+                // being thrown.
+                catch (Exception ex) when (FilterException(ex, engine, marker))
+                {
+                    // This branch is never reachable - see FilterException().
+                    throw;
+                }
+            });
+        }
+
+        protected bool FilterException(Exception ex, ScriptEngine engine, bool[] marker)
+        {
+            if (!engine.IsExceptionCatchable(ex))
+                marker[0] = true;
+
+            // Always return false because we don't actually want to handle the exception.
+            return false;
         }
     }
 

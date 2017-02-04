@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Threading;
 using Jurassic.Library;
 
@@ -1417,6 +1418,32 @@ namespace Jurassic
             {
                 throw new ScriptCancelledException("Script execution has been cancelled.");
             }
+        }
+
+        /// <summary>
+        /// Checks if the given <see cref="Exception"/> is catchable by JavaScript code with a <c>catch</c>
+        /// clause.
+        /// Note: This property is public for technical reasons only and should not be used by user code.
+        /// </summary>
+        /// <param name="ex"></param>
+        /// <returns><c>true</c> if the <see cref="Exception"/> is catchable, <c>false otherwise</c></returns>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool IsExceptionCatchable(Exception ex)
+        {
+            return (ex as JavaScriptException)?.Engine == this;
+        }
+
+        /// <summary>
+        /// Gets or sets a array value with exactly one element that indicates if execution of finally statements in the
+        /// current <see cref="UserDefinedFunction"/> should be skipped. The array serves as a wrapper object which is 
+        /// created on each invocation of a generated method and used by it and the exception filter of their caller.
+        /// Note: This property is public for technical reasons only and should not be used by user code.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool[] CurrentSkipFinallyClausesMarker
+        {
+            get;
+            set;
         }
     }
 }

@@ -58,11 +58,10 @@ namespace Jurassic.Compiler
         }
 
         /// <summary>
-        /// Gets or sets a value that references a local bool variable of the method which indicates
-        /// if an uncatchable exception has been thrown in the current method. This is used to bypass
-        /// code of finally clauses.
+        /// Gets or sets a value that is the method's copy of the
+        /// <see cref="ScriptEngine.CurrentSkipFinallyClausesMarker"/> object.
         /// </summary>
-        public ILLocalVariable IsUncatchableExceptionVariable
+        public ILLocalVariable CurrentSkipFinallyClausesMarkerVariable
         {
             get;
             set;
