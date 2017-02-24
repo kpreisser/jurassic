@@ -1,5 +1,5 @@
 ﻿using System;
-
+using System.Globalization;
 
 namespace Jurassic.Library
 {
@@ -54,6 +54,9 @@ namespace Jurassic.Library
         {
             if (size < 0)
                 throw new JavaScriptException(Engine, ErrorType.RangeError, "Invalid array buffer length.");
+            if (Engine.ArrayBufferSizeLimit.HasValue && size > Engine.ArrayBufferSizeLimit.Value)
+                throw new JavaScriptException(Engine, ErrorType.RangeError, $"The array buffer length must not exceed " 
+                        + $"{Engine.ArrayBufferSizeLimit.Value.ToString(CultureInfo.InvariantCulture)} bytes.");
             return new ArrayBufferInstance(this.InstancePrototype, size);
         }
 

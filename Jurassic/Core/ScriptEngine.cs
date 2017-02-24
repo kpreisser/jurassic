@@ -263,6 +263,15 @@ namespace Jurassic
         }
 
         /// <summary>
+        /// 
+        /// </summary>
+        public int? ArrayBufferSizeLimit
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
         /// Represents a method that transforms a stack frame when formatting the stack trace.
         /// </summary>
         /// <param name="context"></param>
