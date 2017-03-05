@@ -52,7 +52,6 @@ namespace Jurassic.Compiler
         internal static MethodInfo Global_Eval;
 
         internal static MethodInfo ScriptEngine_CheckCancellationRequest;
-        internal static MethodInfo ScriptEngine_ScriptCancelledExceptionThrown;
 
         internal static ConstructorInfo String_Constructor_Char_Int;
         internal static MethodInfo String_Concat;
@@ -212,7 +211,6 @@ namespace Jurassic.Compiler
             Global_Eval = GetStaticMethod(typeof(GlobalObject), "Eval", typeof(ScriptEngine), typeof(object), typeof(Scope), typeof(object), typeof(bool));
 
             ScriptEngine_CheckCancellationRequest = GetInstanceMethod(typeof(ScriptEngine), nameof(ScriptEngine.CheckCancellationRequest));
-            ScriptEngine_ScriptCancelledExceptionThrown = GetInstanceMethod(typeof(ScriptEngine), "get_" + nameof(ScriptEngine.ScriptCancelledExceptionThrown));
 
             String_Constructor_Char_Int = GetConstructor(typeof(string), typeof(char), typeof(int));
             String_Concat = GetStaticMethod(typeof(string), "Concat", typeof(string[]));

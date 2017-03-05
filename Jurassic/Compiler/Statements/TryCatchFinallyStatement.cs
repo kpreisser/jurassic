@@ -144,23 +144,8 @@ namespace Jurassic.Compiler
                         branches.Add(label);
                     };
 
-                // If we are generating cancellation checks, generate a check that will branch to the
-                // end of finally statement if a ScriptCancelledException has been thrown, to ensure no more
-                // script code will be executed.
-                ILLabel endOfFinally = null;
-                if (optimizationInfo.GenerateCancellationChecks)
-                {
-                    endOfFinally = generator.CreateLabel();
-                    EmitHelpers.LoadScriptEngine(generator);
-                    generator.Call(ReflectionHelpers.ScriptEngine_ScriptCancelledExceptionThrown);
-                    generator.BranchIfTrue(endOfFinally);
-                }
-
                 // Emit code for the finally block.
                 this.FinallyBlock.GenerateCode(generator, optimizationInfo);
-
-                if (endOfFinally != null)
-                    generator.DefineLabelPosition(endOfFinally);
 
                 // End the main exception block.
                 generator.EndExceptionBlock();

@@ -14,9 +14,6 @@ namespace Jurassic
         // If a script cancellation has been requested.
         private byte cancellationRequested;
 
-        // If a ScriptCancelledException has already been thrown.
-        private bool scriptCancelledExceptionThrown;
-
         // Compatibility mode.
         private CompatibilityMode compatibilityMode;
 
@@ -211,16 +208,8 @@ namespace Jurassic
             set
             {
                 Thread.VolatileWrite(ref this.cancellationRequested, (byte)(value ? 1 : 0));
-                if (!value)
-                    scriptCancelledExceptionThrown = false;
             }
         }
-
-        /// <summary>
-        /// Gets a value that indicates if a <see cref="ScriptCancelledException"/> has been thrown.
-        /// This field is only public for technical reasons and should not be used in application code.
-        /// </summary>
-        public bool ScriptCancelledExceptionThrown => this.scriptCancelledExceptionThrown;
 
         /// <summary>
         /// Gets or sets a value that indicates whether to force ECMAScript 5 strict mode, even if
@@ -1426,7 +1415,6 @@ namespace Jurassic
         {
             if (Thread.VolatileRead(ref this.cancellationRequested) != 0)
             {
-                this.scriptCancelledExceptionThrown = true;
                 throw new ScriptCancelledException("Script execution has been cancelled.");
             }
         }
