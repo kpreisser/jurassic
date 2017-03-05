@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using Jurassic.Library;
+using System.ComponentModel;
 
 namespace Jurassic
 {
@@ -941,7 +942,7 @@ namespace Jurassic
         public bool HasGlobalValue(string variableName)
         {
             if (variableName == null)
-                throw new ArgumentNullException("variableName");
+                throw new ArgumentNullException(nameof(variableName));
             return this.Global.HasProperty(variableName);
         }
 
@@ -953,7 +954,7 @@ namespace Jurassic
         public object GetGlobalValue(string variableName)
         {
             if (variableName == null)
-                throw new ArgumentNullException("variableName");
+                throw new ArgumentNullException(nameof(variableName));
             return TypeUtilities.NormalizeValue(this.Global.GetPropertyValue(variableName));
         }
 
@@ -970,7 +971,7 @@ namespace Jurassic
         public T GetGlobalValue<T>(string variableName)
         {
             if (variableName == null)
-                throw new ArgumentNullException("variableName");
+                throw new ArgumentNullException(nameof(variableName));
             return TypeConverter.ConvertTo<T>(this, TypeUtilities.NormalizeValue(this.Global.GetPropertyValue(variableName)));
         }
 
@@ -986,9 +987,9 @@ namespace Jurassic
         public void SetGlobalValue(string variableName, object value)
         {
             if (variableName == null)
-                throw new ArgumentNullException("variableName");
+                throw new ArgumentNullException(nameof(variableName));
             if (value == null)
-                throw new ArgumentNullException("value");
+                throw new ArgumentNullException(nameof(value));
 
             if (value == null)
                 value = Null.Value;
@@ -1040,7 +1041,7 @@ namespace Jurassic
                         value = (double)(ulong)value;
                         break;
                     default:
-                        throw new ArgumentException(string.Format("Cannot store value of type {0}.", value.GetType()), "value");
+                        throw new ArgumentException(string.Format("Cannot store value of type {0}.", value.GetType()), nameof(value));
                 }
             }
             this.Global.SetPropertyValue(variableName, value, true);
@@ -1055,9 +1056,9 @@ namespace Jurassic
         public object CallGlobalFunction(string functionName, params object[] argumentValues)
         {
             if (functionName == null)
-                throw new ArgumentNullException("functionName");
+                throw new ArgumentNullException(nameof(functionName));
             if (argumentValues == null)
-                throw new ArgumentNullException("argumentValues");
+                throw new ArgumentNullException(nameof(argumentValues));
             var value = this.Global.GetPropertyValue(functionName);
             if ((value is FunctionInstance) == false)
                 throw new InvalidOperationException(string.Format("'{0}' is not a function.", functionName));
@@ -1074,9 +1075,9 @@ namespace Jurassic
         public T CallGlobalFunction<T>(string functionName, params object[] argumentValues)
         {
             if (functionName == null)
-                throw new ArgumentNullException("functionName");
+                throw new ArgumentNullException(nameof(functionName));
             if (argumentValues == null)
-                throw new ArgumentNullException("argumentValues");
+                throw new ArgumentNullException(nameof(argumentValues));
             return TypeConverter.ConvertTo<T>(this, CallGlobalFunction(functionName, argumentValues));
         }
 
@@ -1089,9 +1090,9 @@ namespace Jurassic
         public void SetGlobalFunction(string functionName, Delegate functionDelegate)
         {
             if (functionName == null)
-                throw new ArgumentNullException("functionName");
+                throw new ArgumentNullException(nameof(functionName));
             if (functionDelegate == null)
-                throw new ArgumentNullException("functionDelegate");
+                throw new ArgumentNullException(nameof(functionDelegate));
             SetGlobalValue(functionName, new ClrFunction(this.Function.InstancePrototype, functionDelegate, functionName));
         }
 
@@ -1368,6 +1369,23 @@ namespace Jurassic
         {
             this.stackFrames.Pop();
         }
+
+        /// <summary>
+        /// Checks if the given <see cref="Exception"/> is catchable by JavaScript code with a
+        /// <c>catch</c> clause.
+        /// Note: This property is public for technical reasons only and should not be used by user code.
+        /// </summary>
+        /// <param name="ex"> The exception to check. </param>
+        /// <returns><c>true</c> if the <see cref="Exception"/> is catchable, <c>false otherwise</c></returns>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool CanCatchException(Exception ex)
+        {
+            var jsException = ex as JavaScriptException;
+            if (jsException == null)
+                return false;
+            return jsException.Engine == this || jsException.Engine == null;
+        }
+
 
 
         //     CLRTYPEWRAPPER CACHE

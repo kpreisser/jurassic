@@ -293,7 +293,7 @@ namespace Jurassic.Compiler
         public ILLocalVariable CreateTemporaryVariable(Type type)
         {
             if (type == null)
-                throw new ArgumentNullException("type");
+                throw new ArgumentNullException(nameof(type));
             if (this.temporaryVariables != null)
             {
                 for (int i = 0; i < this.temporaryVariables.Count; i++)
@@ -329,7 +329,7 @@ namespace Jurassic.Compiler
         public void ReleaseTemporaryVariable(ILLocalVariable temporaryVariable)
         {
             if (temporaryVariable == null)
-                throw new ArgumentNullException("temporaryVariable");
+                throw new ArgumentNullException(nameof(temporaryVariable));
             if (this.temporaryVariables == null)
                 this.temporaryVariables = new List<ILLocalVariable>();
             this.temporaryVariables.Add(temporaryVariable);
@@ -737,7 +737,7 @@ namespace Jurassic.Compiler
         public void LoadMethodPointer(System.Reflection.MethodBase method)
         {
             if (method == null)
-                throw new ArgumentNullException("method");
+                throw new ArgumentNullException(nameof(method));
             if (method.IsStatic == true || method.DeclaringType.IsValueType == true)
                 LoadStaticMethodPointer(method);
             else
@@ -808,6 +808,11 @@ namespace Jurassic.Compiler
         /// Pops an exception object off the stack and throws the exception.
         /// </summary>
         public abstract void Throw();
+
+        /// <summary>
+        /// Re-throws the current exception.
+        /// </summary>
+        public abstract void Rethrow();
 
         /// <summary>
         /// Begins a try-catch-finally block.  After issuing this instruction any following
@@ -888,7 +893,7 @@ namespace Jurassic.Compiler
         public void MarkSequencePoint(System.Diagnostics.SymbolStore.ISymbolDocumentWriter document, SourceCodeSpan span)
         {
             if (span == null)
-                throw new ArgumentNullException("span");
+                throw new ArgumentNullException(nameof(span));
             MarkSequencePoint(document, span.StartLine, span.StartColumn, span.EndLine, span.EndColumn);
         }
 
