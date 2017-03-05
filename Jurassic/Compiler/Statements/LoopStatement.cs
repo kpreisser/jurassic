@@ -213,6 +213,13 @@ namespace Jurassic.Compiler
                 generator.BranchIfFalse(breakTarget2);
             }
 
+            if (optimizationInfo.GenerateCancellationChecks)
+            {
+                // Generate a call to ScriptEngine.CheckCancellationRequest().
+                EmitHelpers.LoadScriptEngine(generator);
+                generator.Call(ReflectionHelpers.ScriptEngine_CheckCancellationRequest);
+            }
+
             // Emit the loop body.
             optimizationInfo.PushBreakOrContinueInfo(this.Labels, breakTarget2, continueTarget2, labelledOnly: false);
             this.Body.GenerateCode(generator, optimizationInfo);
