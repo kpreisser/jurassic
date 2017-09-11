@@ -151,6 +151,8 @@ namespace Jurassic.Compiler
         {
         }
 
+#if ENABLE_DEBUGGING
+
         internal class ReflectionEmitModuleInfo
         {
             public System.Reflection.Emit.AssemblyBuilder AssemblyBuilder;
@@ -158,10 +160,14 @@ namespace Jurassic.Compiler
             public int TypeCount;
         }
 
+        private static object reflectionEmitInfoLock = new object();
+
         /// <summary>
         /// Gets or sets information needed by Reflection.Emit.
         /// </summary>
         private static ReflectionEmitModuleInfo ReflectionEmitInfo;
+
+#endif
 
         /// <summary>
         /// Generates IL for the script.
@@ -197,10 +203,10 @@ namespace Jurassic.Compiler
                     GetParameterTypes(),                                    // Parameter types of the generated method.
                     typeof(MethodGenerator),                                // Owner type.
                     true);                                                  // Skip visibility checks.
-#if __MonoCS__
-                generator = new ReflectionEmitILGenerator(dynamicMethod.GetILGenerator());
-#else
+#if USE_DYNAMIC_IL_INFO
                 generator = new DynamicILGenerator(dynamicMethod);
+#else
+                generator = new ReflectionEmitILGenerator(dynamicMethod.GetILGenerator());
 #endif
 
                 if (this.Options.EnableILAnalysis == true)
@@ -222,37 +228,40 @@ namespace Jurassic.Compiler
             }
             else
             {
-#if WINDOWS_PHONE
-                throw new NotImplementedException();
-#else
+#if ENABLE_DEBUGGING
                 // Debugging or low trust path.
-                ReflectionEmitModuleInfo reflectionEmitInfo = ReflectionEmitInfo;
-                if (reflectionEmitInfo == null)
+                ReflectionEmitModuleInfo reflectionEmitInfo;
+                System.Reflection.Emit.TypeBuilder typeBuilder;
+                lock (reflectionEmitInfoLock)
                 {
-                    reflectionEmitInfo = new ReflectionEmitModuleInfo();
+                    reflectionEmitInfo = ReflectionEmitInfo;
+                    if (reflectionEmitInfo == null)
+                    {
+                        reflectionEmitInfo = new ReflectionEmitModuleInfo();
 
-                    // Create a dynamic assembly and module.
-                    reflectionEmitInfo.AssemblyBuilder = System.Threading.Thread.GetDomain().DefineDynamicAssembly(
-                        new System.Reflection.AssemblyName("Jurassic Dynamic Assembly"), System.Reflection.Emit.AssemblyBuilderAccess.Run);
+                        // Create a dynamic assembly and module.
+                        reflectionEmitInfo.AssemblyBuilder = System.Threading.Thread.GetDomain().DefineDynamicAssembly(
+                            new System.Reflection.AssemblyName("Jurassic Dynamic Assembly"), System.Reflection.Emit.AssemblyBuilderAccess.Run);
 
-                    // Mark the assembly as debuggable.  This must be done before the module is created.
-                    var debuggableAttributeConstructor = typeof(System.Diagnostics.DebuggableAttribute).GetConstructor(
-                        new Type[] { typeof(System.Diagnostics.DebuggableAttribute.DebuggingModes) });
-                    reflectionEmitInfo.AssemblyBuilder.SetCustomAttribute(
-                        new System.Reflection.Emit.CustomAttributeBuilder(debuggableAttributeConstructor,
-                            new object[] { 
-                                System.Diagnostics.DebuggableAttribute.DebuggingModes.DisableOptimizations | 
+                        // Mark the assembly as debuggable.  This must be done before the module is created.
+                        var debuggableAttributeConstructor = typeof(System.Diagnostics.DebuggableAttribute).GetConstructor(
+                            new Type[] { typeof(System.Diagnostics.DebuggableAttribute.DebuggingModes) });
+                        reflectionEmitInfo.AssemblyBuilder.SetCustomAttribute(
+                            new System.Reflection.Emit.CustomAttributeBuilder(debuggableAttributeConstructor,
+                                new object[] {
+                                System.Diagnostics.DebuggableAttribute.DebuggingModes.DisableOptimizations |
                                 System.Diagnostics.DebuggableAttribute.DebuggingModes.Default }));
 
-                    // Create a dynamic module.
-                    reflectionEmitInfo.ModuleBuilder = reflectionEmitInfo.AssemblyBuilder.DefineDynamicModule("Module", this.Options.EnableDebugging);
+                        // Create a dynamic module.
+                        reflectionEmitInfo.ModuleBuilder = reflectionEmitInfo.AssemblyBuilder.DefineDynamicModule("Module", this.Options.EnableDebugging);
 
-                    ReflectionEmitInfo = reflectionEmitInfo;
+                        ReflectionEmitInfo = reflectionEmitInfo;
+                    }
+
+                    // Create a new type to hold our method.
+                    typeBuilder = reflectionEmitInfo.ModuleBuilder.DefineType("JavaScriptClass" + reflectionEmitInfo.TypeCount.ToString(), System.Reflection.TypeAttributes.Public | System.Reflection.TypeAttributes.Class);
+                    reflectionEmitInfo.TypeCount++;
                 }
-
-                // Create a new type to hold our method.
-                var typeBuilder = reflectionEmitInfo.ModuleBuilder.DefineType("JavaScriptClass" + reflectionEmitInfo.TypeCount.ToString(), System.Reflection.TypeAttributes.Public | System.Reflection.TypeAttributes.Class);
-                reflectionEmitInfo.TypeCount++;
 
                 // Create a method.
                 var methodBuilder = typeBuilder.DefineMethod(this.GetMethodName(),
@@ -284,7 +293,9 @@ namespace Jurassic.Compiler
                 var type = typeBuilder.CreateType();
                 var methodInfo = type.GetMethod(this.GetMethodName());
                 this.GeneratedMethod = new GeneratedMethod(Delegate.CreateDelegate(GetDelegate(), methodInfo), optimizationInfo.NestedFunctions);
-#endif //WINDOWS_PHONE
+#else
+                throw new NotImplementedException();
+#endif // ENABLE_DEBUGGING
             }
 
             if (this.Options.EnableILAnalysis == true)

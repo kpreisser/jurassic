@@ -694,6 +694,8 @@ namespace Jurassic
         //     DEBUGGING SUPPORT
         //_________________________________________________________________________________________
 
+#if ENABLE_DEBUGGING
+
         /// <summary>
         /// Gets or sets a value which indicates whether debug information should be generated.  If
         /// this is set to <c>true</c> performance and memory usage are negatively impacted.
@@ -703,6 +705,8 @@ namespace Jurassic
             get;
             set;
         }
+
+#endif
 
         /// <summary>
         /// Gets or sets whether CLR types can be exposed directly to the script engine.  If this is set to 
@@ -941,7 +945,9 @@ namespace Jurassic
             {
                 ForceStrictMode = this.ForceStrictMode,
                 GenerateCancellationChecks = this.GenerateCancellationChecks,
+#if ENABLE_DEBUGGING
                 EnableDebugging = this.EnableDebugging,
+#endif
                 CompatibilityMode = this.CompatibilityMode,
                 EnableILAnalysis = this.EnableILAnalysis,
             };
@@ -1008,12 +1014,10 @@ namespace Jurassic
         {
             if (variableName == null)
                 throw new ArgumentNullException(nameof(variableName));
-            if (value == null)
-                throw new ArgumentNullException(nameof(value));
 
             if (value == null)
                 value = Null.Value;
-            else
+            else if (value != Undefined.Value && value != Null.Value)
             {
                 switch (Type.GetTypeCode(value.GetType()))
                 {
