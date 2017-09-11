@@ -20,8 +20,6 @@ namespace Jurassic.Compiler
         /// </summary>
         public bool ForceStrictMode { get; set; }
 
-#if ENABLE_DEBUGGING
-
         /// <summary>
         /// Gets or sets a value that indicates whether checks for script cancellation shall be generated.
         /// </summary>
@@ -30,6 +28,8 @@ namespace Jurassic.Compiler
             get;
             set;
         }
+
+#if ENABLE_DEBUGGING
 
         /// <summary>
         /// Gets or sets a value which indicates whether debug information should be generated.  If
