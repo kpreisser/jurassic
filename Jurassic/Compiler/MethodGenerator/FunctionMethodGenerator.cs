@@ -320,6 +320,13 @@ namespace Jurassic.Compiler
         {
             // Method signature: object FunctionDelegate(Compiler.Scope scope, object thisObject, Library.FunctionInstance functionObject, object[] arguments)
 
+            if (this.GenerateCancellationChecks)
+            {
+                // Generate a call to ScriptEngine.CheckCancellationRequest().
+                EmitHelpers.LoadScriptEngine(generator);
+                generator.Call(ReflectionHelpers.ScriptEngine_CheckCancellationRequest);
+            }
+
             // Initialize the scope (note: the initial scope for a function is always declarative).
             this.InitialScope.GenerateScopeCreation(generator, optimizationInfo);
 

@@ -106,6 +106,12 @@ namespace Jurassic.Compiler
             var breakTarget = generator.CreateLabel();
             var continueTarget = generator.DefineLabelPosition();
 
+            if (optimizationInfo.GenerateCancellationChecks) {
+                // Generate a call to ScriptEngine.CheckCancellationRequest().
+                EmitHelpers.LoadScriptEngine(generator);
+                generator.Call(ReflectionHelpers.ScriptEngine_CheckCancellationRequest);
+            }
+
             // Emit debugging information.
             if (optimizationInfo.DebugDocument != null)
                 generator.MarkSequencePoint(optimizationInfo.DebugDocument, this.VariableSourceSpan);

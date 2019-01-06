@@ -20,6 +20,16 @@ namespace Jurassic.Compiler
         /// </summary>
         public bool ForceStrictMode { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value that indicates whether checks for script cancellation should
+        /// be generated.
+        /// </summary>
+        public bool GenerateCancellationChecks
+        {
+            get;
+            set;
+        }
+
 #if ENABLE_DEBUGGING
 
         /// <summary>
