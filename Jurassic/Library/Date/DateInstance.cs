@@ -73,7 +73,7 @@ namespace Jurassic.Library
         /// </summary>
         /// <param name="prototype"> The next object in the prototype chain. </param>
         /// <param name="dateTime"> The date to set the instance value to. </param>
-        private DateInstance(ObjectInstance prototype, DateTime? dateTime)
+        public DateInstance(ObjectInstance prototype, DateTime? dateTime)
             : base(prototype)
         {
             this.value = ConvertTimeToUtc(prototype.Engine, dateTime);
@@ -1132,7 +1132,9 @@ namespace Jurassic.Library
                 throw new ArgumentException("DateTime.Kind needs to be Utc");
             // The spec requires that the time value is an integer.
             // We could round to nearest, but then date.toUTCString() would be different from Date(date.getTime()).toUTCString().
-            return Math.Floor(utcDateTime.Value.Subtract(new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds);
+            // We do a integer division before subtracting the dates to ensure the behavior is like Math.Floor().
+            return utcDateTime.Value.ToUniversalTime().Ticks / TimeSpan.TicksPerMillisecond -
+                new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).Ticks / TimeSpan.TicksPerMillisecond;
         }
 
         /// <summary>
