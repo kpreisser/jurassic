@@ -66,6 +66,15 @@ namespace UnitTests
                 Evaluate("new Date(969, 01, 01, 8, 17, 0).valueOf()"));
             Assert.AreEqual(true, Evaluate("new Date(new Date(969, 01, 01, 8, 17, 0)).getTime() == new Date(969, 01, 01, 8, 17, 0).getTime()"));
 
+            // Minimum and maximum .NET DateTime values should work.
+            // DateTimeOffset.MinValue.ToUnixTimeMilliseconds() == -62135596800000
+            Assert.AreEqual("0001-01-01T00:00:00.000Z",
+                Evaluate($"new Date(-62135596800000).toISOString()"));
+            // DateTimeOffset.MaxValue.ToUnixTimeMilliseconds() == 253402300799999
+            Assert.AreEqual("9999-12-31T23:59:59.999Z",
+                Evaluate($"new Date(253402300799999).toISOString()"));
+
+
             // new Date(year, month, [day], [hour], [minute], [second], [millisecond])
             // Note: month is 0-11 is javascript but 1-12 in .NET.
             Assert.AreEqual(ToJSDate(new DateTime(2010, 1, 1)), Evaluate("new Date(2010, 0).valueOf()"));
@@ -698,28 +707,10 @@ namespace UnitTests
             Assert.AreEqual(false, ((DateInstance)Evaluate("new Date(NaN)")).IsValid);
             Assert.AreEqual(false, ((DateInstance)Evaluate("new Date(undefined)")).IsValid);
             Assert.AreEqual(true, ((DateInstance)Evaluate("new Date()")).IsValid);
-        }
 
-        [TestMethod]
-        public void DateConversion()
-        {
-            // Init Jurassic
-            Evaluate("");
-
-            // Simulate "new Date()" (which uses DateTime.Now) at 2016-01-01T11:59:59.9999999Z.
-            DateInstance specialNowDate1 = new DateInstance(jurassicScriptEngine.Date.InstancePrototype,
-                new DateTime(635872463999999999L, DateTimeKind.Utc));
-            jurassicScriptEngine.SetGlobalValue("specialDate1", specialNowDate1);
-
-            Assert.AreEqual(Evaluate("specialDate1.toUTCString()"), Evaluate("new Date(specialDate1.getTime()).toUTCString()"));
-            Assert.AreEqual(1451649599999d, Evaluate("specialDate1.getTime()"));
-
-            // Simulate "new Date()" at 1969-12-31T23:59:59.9999999Z.
-            DateInstance specialNowDate2 = new DateInstance(jurassicScriptEngine.Date.InstancePrototype,
-                new DateTime(621355967999999999L, DateTimeKind.Utc));
-            jurassicScriptEngine.SetGlobalValue("specialDate2", specialNowDate2);
-
-            Assert.AreEqual(-1, Evaluate("specialDate2.getTime()"));
+            Assert.AreEqual(double.NaN, Evaluate("var date = new Date(NaN); date.setMonth(1); date.getTime();"));
+            Assert.AreEqual(double.NaN, Evaluate("var date = new Date(NaN); date.setHours(1); date.getTime();"));
+            Assert.AreEqual(0, Evaluate("var date = new Date(NaN); date.setFullYear(1970); date.getTime();"));
         }
 
         [TestMethod]
@@ -770,6 +761,30 @@ namespace UnitTests
             // Restore local timezone.
             jurassicScriptEngine.LocalTimeZone = TimeZoneInfo.Local;
         }
+
+        [TestMethod]
+        public void DateConversion()
+        {
+            // Init Jurassic
+            Evaluate("");
+
+            // Simulate "new Date()" (which uses DateTime.Now) at 2016-01-01T11:59:59.9999999Z.
+            DateInstance specialNowDate1 = new DateInstance(jurassicScriptEngine.Date.InstancePrototype,
+                new DateTime(635872463999999999L, DateTimeKind.Utc));
+            jurassicScriptEngine.SetGlobalValue("specialDate1", specialNowDate1);
+
+            Assert.AreEqual(Evaluate("specialDate1.toUTCString()"), Evaluate("new Date(specialDate1.getTime()).toUTCString()"));
+            Assert.AreEqual(1451649599999d, Evaluate("specialDate1.getTime()"));
+
+            // Simulate "new Date()" at 1969-12-31T23:59:59.9999999Z.
+            DateInstance specialNowDate2 = new DateInstance(jurassicScriptEngine.Date.InstancePrototype,
+                new DateTime(621355967999999999L, DateTimeKind.Utc));
+            jurassicScriptEngine.SetGlobalValue("specialDate2", specialNowDate2);
+
+            Assert.AreEqual(-1, Evaluate("specialDate2.getTime()"));
+        }
+
+
 
 
 
