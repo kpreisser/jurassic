@@ -62,6 +62,13 @@ namespace Jurassic.Compiler
         /// <param name="optimizationInfo"> Information about any optimizations that should be performed. </param>
         protected override void GenerateCode(ILGenerator generator, OptimizationInfo optimizationInfo)
         {
+            if (this.GenerateCancellationChecks)
+            {
+                // Generate a call to ScriptEngine.CheckCancellationRequest().
+                EmitHelpers.LoadScriptEngine(generator);
+                generator.Call(ReflectionHelpers.ScriptEngine_CheckCancellationRequest);
+            }
+
             // Declare a variable to store the eval result.
             optimizationInfo.EvalResult = generator.DeclareVariable(typeof(object));
 
