@@ -9,6 +9,7 @@ namespace Jurassic.Library
     /// </summary>
     public partial class ErrorInstance : ObjectInstance
     {
+        private bool stackAlreadySet = false;
 
         //     INITIALIZATION
         //_________________________________________________________________________________________
@@ -91,7 +92,17 @@ namespace Jurassic.Library
         /// </summary>
         public string Stack
         {
-            get { return TypeConverter.ToString(this["stack"]); }
+            get
+            {
+                StringBuilder result = new StringBuilder(this.Name);
+                if (string.IsNullOrEmpty(this.Message) == false)
+                {
+                    result.Append(": ");
+                    result.Append(this.Message);
+                }        
+                
+                return result.ToString() + TypeConverter.ToString(this["stack"]);
+            }
         }
 
         /// <summary>
@@ -100,9 +111,14 @@ namespace Jurassic.Library
         /// <param name="path"> The path of the javascript source file that is currently executing. </param>
         /// <param name="function"> The name of the currently executing function. </param>
         /// <param name="line"> The line number of the statement that is currently executing. </param>
-        internal void SetStackTrace(string path, string function, int line)
+        /// <param name="overrideStack"></param>
+        internal void SetStackTrace(string path, string function, int line, bool overrideStack = false)
         {
-            var stackTrace = this.Engine.FormatStackTrace(this.Name, this.Message, path, function, line);
+            if (!overrideStack && stackAlreadySet)
+                return;
+
+            stackAlreadySet = true;
+            var stackTrace = this.Engine.FormatStackTrace(null, null, path, function, line);
             this.FastSetProperty("stack", stackTrace, PropertyAttributes.FullAccess);
         }
 

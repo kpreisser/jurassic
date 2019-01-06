@@ -36,7 +36,7 @@ namespace Jurassic
         private MathObject mathObject;
         private NumberConstructor numberConstructor;
         private ObjectConstructor objectConstructor;
-        private PromiseConstructor promiseConstructor;
+        //private PromiseConstructor promiseConstructor;
         private RegExpConstructor regExpConstructor;
         private SetConstructor setConstructor;
         private StringConstructor stringConstructor;
@@ -106,7 +106,7 @@ namespace Jurassic
             this.dateConstructor = new DateConstructor(baseFunction);
             this.mapConstructor = new MapConstructor(baseFunction);
             this.numberConstructor = new NumberConstructor(baseFunction);
-            this.promiseConstructor = new PromiseConstructor(baseFunction);
+            //this.promiseConstructor = new PromiseConstructor(baseFunction);
             this.regExpConstructor = new RegExpConstructor(baseFunction);
             this.setConstructor = new SetConstructor(baseFunction);
             this.stringConstructor = new StringConstructor(baseFunction);
@@ -151,7 +151,7 @@ namespace Jurassic
             globalProperties.Add(new PropertyNameAndValue("Math", this.mathObject, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("Number", this.numberConstructor, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("Object", this.objectConstructor, PropertyAttributes.NonEnumerable));
-            globalProperties.Add(new PropertyNameAndValue("Promise", this.promiseConstructor, PropertyAttributes.NonEnumerable));
+            //globalProperties.Add(new PropertyNameAndValue("Promise", this.promiseConstructor, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("RegExp", this.regExpConstructor, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("Set", this.setConstructor, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("String", this.stringConstructor, PropertyAttributes.NonEnumerable));
@@ -293,6 +293,15 @@ namespace Jurassic
         /// The default value is <c>0</c>, which allows unlimited recursion.
         /// </summary>
         public int RecursionDepthLimit
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public int? ArrayBufferSizeLimit
         {
             get;
             set;
@@ -480,13 +489,13 @@ namespace Jurassic
             get { return this.objectConstructor; }
         }
 
-        /// <summary>
-        /// Gets the built-in Promise object.
-        /// </summary>
-        public PromiseConstructor Promise
-        {
-            get { return this.promiseConstructor; }
-        }
+        ///// <summary>
+        ///// Gets the built-in Promise object.
+        ///// </summary>
+        //public PromiseConstructor Promise
+        //{
+        //    get { return this.promiseConstructor; }
+        //}
 
         /// <summary>
         /// Gets the built-in RegExp object.
@@ -1293,11 +1302,15 @@ namespace Jurassic
         /// <param name="line"> The line number of the statement that is currently executing. </param>
         internal string FormatStackTrace(string errorName, string message, string path, string function, int line)
         {
-            var result = new System.Text.StringBuilder(errorName);
-            if (string.IsNullOrEmpty(message) == false)
+            var result = new System.Text.StringBuilder();
+            if (errorName != null)
             {
-                result.Append(": ");
-                result.Append(message);
+                result.Append(errorName);
+                if (string.IsNullOrEmpty(message) == false)
+                {
+                    result.Append(": ");
+                    result.Append(message);
+                }
             }
             StackFrame[] stackFrameArray = this.stackFrames.ToArray();
             if (path != null || function != null || line != 0)

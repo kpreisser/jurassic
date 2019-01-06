@@ -1132,6 +1132,7 @@ namespace Jurassic.Library
         {
             public List<JSBinderMethod> Methods;
             public int Length;
+            public bool ProducesStackFrame;
             public PropertyAttributes PropertyAttributes;
         }
 
@@ -1189,7 +1190,12 @@ namespace Jurassic.Library
                 MethodGroup methodGroup;
                 if (functions.ContainsKey(name) == false)
                 {
-                    methodGroup = new MethodGroup { Methods = new List<JSBinderMethod>(1), Length = -1 };
+                    methodGroup = new MethodGroup
+                    {
+                        Methods = new List<JSBinderMethod>(1),
+                        Length = -1,
+                        ProducesStackFrame = attribute.ProducesStackFrame
+                    };
                     functions.Add(name, methodGroup);
                 }
                 else
@@ -1231,7 +1237,8 @@ namespace Jurassic.Library
                 MethodGroup methodGroup = pair.Value;
 
                 // Add the function as a property of the object.
-                this.FastSetProperty(name, new ClrFunction(this.Engine.Function.InstancePrototype, methodGroup.Methods, name, methodGroup.Length), methodGroup.PropertyAttributes);
+                this.FastSetProperty(name, new ClrFunction(this.Engine.Function.InstancePrototype, methodGroup.Methods, name, methodGroup.Length, methodGroup.ProducesStackFrame),
+                        methodGroup.PropertyAttributes);
             }
 
             PropertyInfo[] properties = type.GetProperties(bindingFlags);
