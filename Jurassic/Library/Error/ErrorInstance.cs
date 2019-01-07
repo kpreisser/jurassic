@@ -112,9 +112,9 @@ namespace Jurassic.Library
         /// <param name="function"> The name of the currently executing function. </param>
         /// <param name="line"> The line number of the statement that is currently executing. </param>
         /// <param name="overrideStack"></param>
-        internal void SetStackTrace(string path, string function, int line, bool overrideStack = false)
+        internal void SetStackTrace(string path, string function, int line)
         {
-            if (!overrideStack && stackAlreadySet)
+            if (this.stackAlreadySet)
                 return;
 
             stackAlreadySet = true;
