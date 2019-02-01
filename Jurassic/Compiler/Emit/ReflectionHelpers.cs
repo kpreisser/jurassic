@@ -106,6 +106,7 @@ namespace Jurassic.Compiler
         internal static MethodInfo ObjectInstance_SetPropertyValue_Int;
         internal static MethodInfo ObjectInstance_SetPropertyValue_PropertyReference;
         internal static MethodInfo ObjectInstance_SetPropertyValueIfExists;
+        internal static MethodInfo ObjectInstance_InitializeMissingProperty;
 
         internal static MethodInfo Scope_ParentScope;
         internal static MethodInfo ObjectScope_CreateRuntimeScope;
@@ -179,6 +180,7 @@ namespace Jurassic.Compiler
             ObjectInstance_SetPropertyValue_Int = GetInstanceMethod(typeof(ObjectInstance), "SetPropertyValue", typeof(uint), typeof(object), typeof(bool));
             ObjectInstance_SetPropertyValue_PropertyReference = GetInstanceMethod(typeof(ObjectInstance), "SetPropertyValue", typeof(PropertyReference), typeof(object), typeof(bool));
             ObjectInstance_SetPropertyValueIfExists = GetInstanceMethod(typeof(ObjectInstance), "SetPropertyValueIfExists", typeof(object), typeof(object), typeof(bool));
+            ObjectInstance_InitializeMissingProperty = GetInstanceMethod(typeof(ObjectInstance), "InitializeMissingProperty", typeof(object), typeof(Library.PropertyAttributes));
 
             Scope_ParentScope = GetInstanceMethod(typeof(Scope), "get_ParentScope");
             ObjectScope_CreateRuntimeScope = GetStaticMethod(typeof(ObjectScope), "CreateRuntimeScope", typeof(Scope), typeof(ObjectInstance), typeof(bool), typeof(bool));
@@ -201,7 +203,7 @@ namespace Jurassic.Compiler
             ScriptEngine_RegExp = GetInstanceMethod(typeof(ScriptEngine), "get_RegExp");
             ScriptEngine_Array = GetInstanceMethod(typeof(ScriptEngine), "get_Array");
             ScriptEngine_Object = GetInstanceMethod(typeof(ScriptEngine), "get_Object");
-            ScriptEngine_CanCatchException = GetInstanceMethod(typeof(ScriptEngine), "CanCatchException", typeof(Exception));
+            ScriptEngine_CanCatchException = GetInstanceMethod(typeof(ScriptEngine), "CanCatchException", typeof(object));
             Global_Eval = GetStaticMethod(typeof(GlobalObject), "Eval", typeof(ScriptEngine), typeof(object), typeof(Scope), typeof(object), typeof(bool));
 
             ScriptEngine_CheckCancellationRequest = GetInstanceMethod(typeof(ScriptEngine), nameof(ScriptEngine.CheckCancellationRequest));
