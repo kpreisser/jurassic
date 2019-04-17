@@ -114,7 +114,6 @@ namespace Jurassic.Library
         /// <param name="path"> The path of the javascript source file that is currently executing. </param>
         /// <param name="function"> The name of the currently executing function. </param>
         /// <param name="line"> The line number of the statement that is currently executing. </param>
-        /// <param name="overrideStack"></param>
         internal void SetStackTrace(string path, string function, int line)
         {
             if (this.stackAlreadySet)
