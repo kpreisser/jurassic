@@ -4,6 +4,7 @@ using System.Threading;
 using Jurassic.Library;
 using Jurassic.Compiler;
 using System.ComponentModel;
+using System.Collections.Concurrent;
 
 namespace Jurassic
 {
@@ -69,7 +70,6 @@ namespace Jurassic
         private ObjectInstance mapIteratorPrototype;
         private ObjectInstance setIteratorPrototype;
         private ObjectInstance arrayIteratorPrototype;
-
 
         /// <summary>
         /// Initializes a new scripting environment.
@@ -701,7 +701,7 @@ namespace Jurassic
 
         //     EXECUTION
         //_________________________________________________________________________________________
-        
+
         /// <summary>
         /// Compiles the given source code and returns it in a form that can be executed many
         /// times.
@@ -792,6 +792,9 @@ namespace Jurassic
             this.ExecutionStarted?.Invoke(this, EventArgs.Empty);
             var result = methodGen.Execute(this);
 
+            // Execute any pending callbacks.
+            ExecutePendingCallbacks();
+
             // Normalize the result (convert null to Undefined, double to int, etc).
             return TypeUtilities.NormalizeValue(result);
         }
@@ -814,6 +817,17 @@ namespace Jurassic
         /// <param name="code"> The javascript source code to execute. </param>
         public void Execute(string code)
         {
+            // Special case for executing pending callbacks only.
+            if (string.IsNullOrEmpty(code))
+            {
+                ParsingStarted?.Invoke(this, EventArgs.Empty);
+                OptimizationStarted?.Invoke(this, EventArgs.Empty);
+                CodeGenerationStarted?.Invoke(this, EventArgs.Empty);
+                ExecutionStarted?.Invoke(this, EventArgs.Empty);
+                ExecutePendingCallbacks();
+                return;
+            }
+
             Execute(new StringScriptSource(code));
         }
 
@@ -1361,16 +1375,16 @@ namespace Jurassic
         }
 
         /// <summary>
-        /// Checks if the given <see cref="Exception"/> is catchable by JavaScript code with a
+        /// Checks if the given <paramref name="exception"/> is catchable by JavaScript code with a
         /// <c>catch</c> clause.
-        /// Note: This property is public for technical reasons only and should not be used by user code.
+        /// Note: This method is public for technical reasons only and should not be used by user code.
         /// </summary>
-        /// <param name="ex"> The exception to check. </param>
+        /// <param name="exception"> The exception to check. </param>
         /// <returns><c>true</c> if the <see cref="Exception"/> is catchable, <c>false otherwise</c></returns>
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public bool CanCatchException(Exception ex)
+        public bool CanCatchException(object exception)
         {
-            var jsException = ex as JavaScriptException;
+            var jsException = exception as JavaScriptException;
             if (jsException == null)
                 return false;
             return jsException.Engine == this || jsException.Engine == null;
@@ -1408,6 +1422,63 @@ namespace Jurassic
                     this.staticTypeWrapperCache = new Dictionary<Type, ClrStaticTypeWrapper>();
                 return this.staticTypeWrapperCache;
             }
+        }
+
+
+
+        //     PENDING CALLBACKS
+        //_________________________________________________________________________________________
+
+        private struct PendingCallback
+        {
+            private readonly FunctionInstance callback;
+            private readonly object thisObj;
+            private readonly object[] arguments;
+
+            public PendingCallback(FunctionInstance callback, object thisObj, object[] arguments)
+            {
+                this.callback = callback;
+                this.thisObj = thisObj;
+                this.arguments = arguments;
+            }
+
+            public void Invoke() => callback.Call(thisObj, arguments);
+        }
+
+        private readonly Queue<PendingCallback> pendingCallbacks = new Queue<PendingCallback>();
+        private bool processingPendingCallbacks;
+
+        /// <summary>
+        /// Appends a callback to the EventLoop that will be executed at the end of script execution.
+        /// </summary>
+        /// <param name="callback"> The callback function. </param>
+        /// <param name="thisObj"> The value of <c>this</c> in the context of the function. </param>
+        /// <param name="arguments"> Any number of arguments that will be passed to the function. </param>
+        internal void AddPendingCallback(FunctionInstance callback, object thisObj, params object[] arguments)
+        {
+            if (callback == null)
+                throw new ArgumentNullException(nameof(callback));
+            var instance = new PendingCallback(callback, thisObj, arguments);
+            pendingCallbacks.Enqueue(instance);
+        }
+
+        /// <summary>
+        /// This method is called at the end of script execution in order to execute pending
+        /// callbacks registered with <see cref="AddPendingCallback(FunctionInstance, object, object[])"/>.
+        /// </summary>
+        internal void ExecutePendingCallbacks()
+        {
+            // It's possible for pending callbacks to end up calling Execute(). If this is the
+            // case, do nothing.
+            if (processingPendingCallbacks)
+                return;
+            processingPendingCallbacks = true;
+            while (pendingCallbacks.Count > 0)
+            {
+                var instance = pendingCallbacks.Dequeue();
+                instance.Invoke();
+            }
+            processingPendingCallbacks = false;
         }
 
 

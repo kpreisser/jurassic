@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace Jurassic.Library
 {
     /// <summary>
     /// The prototype for the Date object.
     /// </summary>
+    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
+    [DebuggerTypeProxy(typeof(ObjectInstanceDebugView))]
     public partial class DateInstance : ObjectInstance
     {
         /// <summary>
@@ -68,7 +71,7 @@ namespace Jurassic.Library
         /// </remarks>
         public DateInstance(ObjectInstance prototype, int year, int month, int day = 1, int hour = 0,
             int minute = 0, int second = 0, int millisecond = 0)
-            : this(prototype, ToDateTime(year, month, day, hour, minute, second, millisecond, DateTimeKind.Local))
+            : this(prototype, ToDateTime(year >= 0 && year < 100 ? year + 1900 : year, month, day, hour, minute, second, millisecond, DateTimeKind.Local))
         {
         }
 
@@ -126,6 +129,36 @@ namespace Jurassic.Library
         public bool IsValid
         {
             get { return this.value != InvalidDate; }
+        }
+
+        /// <summary>
+        /// Gets value, that will be displayed in debugger watch window.
+        /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public override string DebuggerDisplayValue
+        {
+            get
+            {
+                return DateInstance.ToString(this);
+            }
+        }
+
+        /// <summary>
+        /// Gets value, that will be displayed in debugger watch window when this object is part of array, map, etc.
+        /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public override string DebuggerDisplayShortValue
+        {
+            get { return this.DebuggerDisplayValue; }
+        }
+
+        /// <summary>
+        /// Gets type, that will be displayed in debugger watch window.
+        /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public override string DebuggerDisplayType
+        {
+            get { return "Date"; }
         }
 
 
@@ -1152,6 +1185,10 @@ namespace Jurassic.Library
         /// <returns> The equivalent .NET date. </returns>
         private static DateTime ToDateTime(int year, int month, int day, int hour, int minute, int second, int millisecond, DateTimeKind kind)
         {
+            // DateTime doesn't support years below year 1.
+            if (year < 0)
+                return InvalidDate;
+
             if (month >= 0 && month < 12 &&
                 day >= 1 && day <= DateTime.DaysInMonth(year, month + 1) &&
                 hour >= 0 && hour < 24 &&

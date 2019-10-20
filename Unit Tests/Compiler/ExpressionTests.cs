@@ -881,6 +881,7 @@ namespace UnitTests
             Assert.AreEqual(0, Evaluate("x = 4; x &= 1; x"));
             Assert.AreEqual(5, Evaluate("x = 4; x |= 1; x"));
             Assert.AreEqual(5, Evaluate("x = 4; x ^= 1; x"));
+            Assert.AreEqual(16, Evaluate("x = 4; x **= 2; x"));
 
             // String operations.
             Assert.AreEqual("hah", Evaluate("x = 'hah'"));
@@ -909,6 +910,7 @@ namespace UnitTests
             Assert.AreEqual(0, Evaluate("x = 'hah'; x &= 1; x"));
             Assert.AreEqual(1, Evaluate("x = 'hah'; x |= 1; x"));
             Assert.AreEqual(1, Evaluate("x = 'hah'; x ^= 1; x"));
+            Assert.AreEqual(double.NaN, Evaluate("x = 'hah'; x **= 2; x"));
 
             // Evaluated left to right.
             Assert.AreEqual(7, Evaluate("x = 1; (x = 2) + x + (x = 3)"));
@@ -1037,6 +1039,9 @@ namespace UnitTests
             Assert.AreEqual(27, Evaluate("5 + (5 + 6) * 2"));
             Assert.AreEqual(33, Evaluate("5 + (5 * 6) - 2"));
             Assert.AreEqual(32, Evaluate("(5 + (5 + 6)) * 2"));
+
+            Assert.AreEqual("SyntaxError", EvaluateExceptionType("(5"));
+            Assert.AreEqual("SyntaxError", EvaluateExceptionType("({[0]("));
         }
 
         [TestMethod]
@@ -1252,6 +1257,7 @@ namespace UnitTests
             Assert.AreEqual("ReferenceError", EvaluateExceptionType("qwerty345.prop"));
             Assert.AreEqual("TypeError", EvaluateExceptionType("null.prop"));
             Assert.AreEqual("TypeError", EvaluateExceptionType("undefined.prop"));
+            Assert.AreEqual("SyntaxError", EvaluateExceptionType("[].()"));
         }
 
         [TestMethod]
@@ -1362,6 +1368,13 @@ namespace UnitTests
             Assert.AreEqual(3, Evaluate("var x = { 5.5() { return 3; } }; x[5.5]()"));
             Assert.AreEqual(3, Evaluate("var x = { this() { return 3; } }; x.this()"));
             Assert.AreEqual(17, Evaluate("var x = { 'baby superman'() { return 17; } }; x['baby superman']()"));
+            Assert.AreEqual(19, Evaluate("var x = { [1+2]() { return 19; } }; x[3]()"));
+            Assert.AreEqual("1", Evaluate("var x = { [1]() { return 19; } }; x[1].name"));
+            Assert.AreEqual("test", Evaluate("var x = { ['test']() { return 19; } }; x.test.name"));
+
+            // TODO: we currently cannot compute function names at runtime.
+            Assert.AreEqual("", Evaluate("var x = { [1+2]() { return 19; } }; x[3].name"));
+            Assert.AreEqual("", Evaluate("var y = { a: 1, b: 2 }; var x = {[y]() { return 10; }}; x[y].name"));
         }
 
         [TestMethod]
@@ -1377,6 +1390,20 @@ namespace UnitTests
             Assert.AreEqual(Undefined.Value, Evaluate("x = {a: 1, b: 2}; delete x['a']; x.a"));
             Assert.AreEqual(true, Evaluate("x = {a: 1, b: 2}; y = 'a'; delete x[y]"));
             Assert.AreEqual(Undefined.Value, Evaluate("x = {a: 1, b: 2}; y = 'a'; delete x[y]; x.a"));
+
+            // Delete from a dense array.
+            Assert.AreEqual(true, Evaluate("x = [0, 1, 2]; delete x[1]"));
+            Assert.AreEqual("0,,2", Evaluate("x = [0, 1, 2]; delete x[1]; x.toString()"));
+            Assert.AreEqual(true, Evaluate("x = [0, 1, 2]; delete x[-1]"));
+            Assert.AreEqual("0,1,2", Evaluate("x = [0, 1, 2]; delete x[-1]; x.toString()"));
+            Assert.AreEqual(true, Evaluate("x = [0, 1, 2]; delete x[3]"));
+            Assert.AreEqual("0,1,2", Evaluate("x = [0, 1, 2]; delete x[3]; x.toString()"));
+
+            // Delete from a sparse array.
+            Assert.AreEqual(true, Evaluate("x = []; x[10000] = 1; delete x[10000]"));
+            Assert.AreEqual(10001, Evaluate("x = []; x[10000] = 1; delete x[10000]; x.length"));
+            Assert.AreEqual(true, Evaluate("x = []; x[10000] = 1; delete x[10001]"));
+            Assert.AreEqual(10001, Evaluate("x = []; x[10000] = 1; delete x[10000]; x.length"));
 
             // Delete does not operate against the prototype chain.
             Assert.AreEqual(true, Evaluate("x = Object.create({a: 1}); delete x.a"));
@@ -1437,6 +1464,9 @@ namespace UnitTests
             Assert.AreEqual(5, Evaluate("var x = {}; x[Symbol.iterator] = 5; x[Symbol.iterator]"));
             Assert.AreEqual(true, Evaluate("delete x[Symbol.iterator]"));
             Assert.AreEqual(Undefined.Value, Evaluate("x[Symbol.iterator]"));
+
+            // Errors
+            Assert.AreEqual("SyntaxError", EvaluateExceptionType("delete[].(0)"));
         }
 
         [TestMethod]
@@ -1553,6 +1583,43 @@ namespace UnitTests
             Assert.AreEqual("SyntaxError", EvaluateExceptionType("`\\09`"));
             Assert.AreEqual("SyntaxError", EvaluateExceptionType("`\\0444`"));
             Assert.AreEqual("SyntaxError", EvaluateExceptionType("`\\44`"));
+        }
+
+        [TestMethod]
+        public void Exponentiation()
+        {
+            Assert.AreEqual(8, Evaluate("2**3"));
+            Assert.AreEqual(11.31370849898476039, Evaluate("2 ** 3.5"));
+            Assert.AreEqual(0.088388347648318441, Evaluate("2 ** -3.5"));
+            Assert.AreEqual(double.NaN, Evaluate("2 ** NaN"));
+            Assert.AreEqual(1, Evaluate("2 ** 0"));
+            Assert.AreEqual(1, Evaluate("NaN ** 0"));
+            Assert.AreEqual(1, Evaluate("NaN ** -0"));
+            Assert.AreEqual(double.NaN, Evaluate("NaN ** 1"));
+            Assert.AreEqual(double.PositiveInfinity, Evaluate("2 ** Infinity"));
+            Assert.AreEqual(0, Evaluate("2 ** (-Infinity)"));
+            Assert.AreEqual(double.NaN, Evaluate("1 ** Infinity"));
+            Assert.AreEqual(double.NaN, Evaluate("1 ** -Infinity"));
+            Assert.AreEqual(0, Evaluate("0.5 ** Infinity"));
+            Assert.AreEqual(double.PositiveInfinity, Evaluate("0.5 ** -Infinity"));
+            Assert.AreEqual(0, Evaluate("(-0.5) ** Infinity"));
+            Assert.AreEqual(double.PositiveInfinity, Evaluate("(-0.5) ** -Infinity"));
+            Assert.AreEqual(double.PositiveInfinity, Evaluate("Infinity ** 1"));
+            Assert.AreEqual(0, Evaluate("Infinity ** -1"));
+            Assert.AreEqual(double.NegativeInfinity, Evaluate("-Infinity ** 1"));
+            Assert.AreEqual(double.PositiveInfinity, Evaluate("-Infinity ** 2"));
+            Assert.AreEqual(0, Evaluate("(-Infinity) ** -1"));
+            Assert.AreEqual(true, Evaluate("Object.is((-Infinity) ** -1, -0)"));
+            Assert.AreEqual(0, Evaluate("-Infinity ** -2"));
+            Assert.AreEqual(0, Evaluate("0 ** 1"));
+            Assert.AreEqual(double.PositiveInfinity, Evaluate("0 ** -1"));
+            Assert.AreEqual(-0, Evaluate("(-0) ** 1"));
+            Assert.AreEqual(true, Evaluate("Object.is((-0) ** 1, -0)"));
+            Assert.AreEqual(+0, Evaluate("(-0) ** 2"));
+            Assert.AreEqual(double.NegativeInfinity, Evaluate("(-0) ** -1"));
+            Assert.AreEqual(double.PositiveInfinity, Evaluate("(-0) ** -2"));
+            Assert.AreEqual(double.NaN, Evaluate("(-1) ** 1.5"));
+            Assert.AreEqual(double.NaN, Evaluate("(-1) ** -1.5"));
         }
     }
 }

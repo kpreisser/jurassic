@@ -354,6 +354,8 @@ namespace Jurassic.Compiler
                     this.Increment is AssignmentExpression &&
                     (((AssignmentExpression)this.Increment).OperatorType == OperatorType.PostIncrement ||
                     ((AssignmentExpression)this.Increment).OperatorType == OperatorType.PreIncrement) &&
+                    ((AssignmentExpression)this.Increment).Target != null &&
+                    ((AssignmentExpression)this.Increment).Target is NameExpression &&
                     ((NameExpression)((AssignmentExpression)this.Increment).Target).Name == loopVariableName)
                 {
                     // for (?; i < <int>; i ++)
@@ -365,6 +367,8 @@ namespace Jurassic.Compiler
                     this.Increment is AssignmentExpression &&
                     (((AssignmentExpression)this.Increment).OperatorType == OperatorType.PostDecrement ||
                     ((AssignmentExpression)this.Increment).OperatorType == OperatorType.PreDecrement) &&
+                    ((AssignmentExpression)this.Increment).Target != null &&
+                    ((AssignmentExpression)this.Increment).Target is NameExpression &&
                     ((NameExpression)((AssignmentExpression)this.Increment).Target).Name == loopVariableName)
                 {
                     // for (?; i > <int>; i --)
@@ -442,6 +446,7 @@ namespace Jurassic.Compiler
                 continueEncountered == true ||
                 root is IfStatement ||
                 root is TernaryExpression ||
+                root is SwitchStatement ||
                 root is TryCatchFinallyStatement ||
                 (root is BinaryExpression && ((BinaryExpression)root).OperatorType == OperatorType.LogicalAnd) ||
                 (root is BinaryExpression && ((BinaryExpression)root).OperatorType == OperatorType.LogicalOr);

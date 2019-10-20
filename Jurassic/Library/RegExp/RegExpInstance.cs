@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Jurassic.Library
@@ -7,11 +9,13 @@ namespace Jurassic.Library
     /// <summary>
     /// Represents an instance of the RegExp object.
     /// </summary>
+    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
+    [DebuggerTypeProxy(typeof(ObjectInstanceDebugView))]
     public partial class RegExpInstance : ObjectInstance
     {
         private Regex value;
         private bool globalSearch;
-
+        private string source;
 
 
         //     INITIALIZATION
@@ -34,7 +38,7 @@ namespace Jurassic.Library
 
             try
             {
-                this.value = new Regex(pattern, ParseFlags(flags));
+                this.value = CreateRegex(pattern, ParseFlags(flags));
             }
             catch (ArgumentException ex)
             {
@@ -91,6 +95,33 @@ namespace Jurassic.Library
             get { return this.value; }
         }
 
+        /// <summary>
+        /// Gets value, that will be displayed in debugger watch window.
+        /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public override string DebuggerDisplayValue
+        {
+            get { return this.Value.ToString(); }
+        }
+
+        /// <summary>
+        /// Gets value, that will be displayed in debugger watch window when this object is part of array, map, etc.
+        /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public override string DebuggerDisplayShortValue
+        {
+            get { return this.DebuggerDisplayValue; }
+        }
+
+        /// <summary>
+        /// Gets type, that will be displayed in debugger watch window.
+        /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public override string DebuggerDisplayType
+        {
+            get { return "RegExp"; }
+        }
+
 
 
         //     JAVASCRIPT PROPERTIES
@@ -102,7 +133,7 @@ namespace Jurassic.Library
         [JSProperty(Name = "source")]
         public string Source
         {
-            get { return this.value.ToString(); }
+            get { return this.source ?? this.value.ToString(); }
         }
 
         /// <summary>
@@ -182,7 +213,7 @@ namespace Jurassic.Library
         [JSInternalFunction(Deprecated = true, Name = "compile")]
         public void Compile(string pattern, string flags = null)
         {
-            this.value = new Regex(pattern, ParseFlags(flags) | RegexOptions.Compiled);
+            this.value = CreateRegex(pattern, ParseFlags(flags) | RegexOptions.Compiled);
 
             // Update the javascript properties.
             this.FastSetProperty("source", pattern);
@@ -561,6 +592,71 @@ namespace Jurassic.Library
                 }
             }
             return options;
+        }
+
+        /// <summary>
+        /// Creates a .NET Regex object using the given pattern and options.
+        /// </summary>
+        /// <param name="pattern"> The pattern string. </param>
+        /// <param name="options"> The regular expression options. </param>
+        /// <returns> A constructed .NET Regex object. </returns>
+        private Regex CreateRegex(string pattern, RegexOptions options)
+        {
+            if ((options & RegexOptions.Multiline) == RegexOptions.Multiline)
+            {
+                // In the .NET Regex implementation with multiline mode:
+                // '.' matches any character except \n
+                // '^' matches the start of the string or \n (positive lookbehind)
+                // '$' matches the end of the string or \n (positive lookahead)
+                // In Javascript, we want all three characters to also match \r in the same way they match \n.
+
+                StringBuilder builder = null;
+                int start = 0, end = -1;
+                while (end < pattern.Length)
+                {
+                    end = pattern.IndexOfAny(new char[] { '.', '^', '$', '\\' }, end + 1);
+                    if (end == -1)
+                        break;
+                    if (builder == null)
+                        builder = new StringBuilder();
+                    builder.Append(pattern.Substring(start, end - start));
+                    start = end + 1;
+                    switch (pattern[end])
+                    {
+                        case '.':
+                            builder.Append(@"[^\r\n]");
+                            break;
+                        case '^':
+                            // [^abc] is a thing. The ^ does NOT match the start of the line in this case.
+                            if (end > 0 && pattern[end - 1] == '[')
+                                builder.Append('^');
+                            else
+                                builder.Append(@"(?<=^|\r)");
+                            break;
+                        case '$':
+                            builder.Append(@"(?=$|\r)");
+                            break;
+                        case '\\':
+                            // $ is an anchor. \$ matches the literal dollar sign. \\$ is a backslash then an anchor.
+                            if (end < pattern.Length - 1)
+                            {
+                                builder.Append(pattern[end]);
+                                builder.Append(pattern[end + 1]);
+                                start++;
+                                end++;
+                            }
+                            break;
+                    }
+                }
+                if (builder != null)
+                {
+                    this.source = pattern;
+                    builder.Append(pattern.Substring(start));
+                    pattern = builder.ToString();
+                }
+            }
+
+            return new Regex(pattern, options);
         }
     }
 }

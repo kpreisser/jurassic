@@ -78,7 +78,6 @@ namespace Jurassic.Compiler
         internal static MethodInfo IEnumerator_String_Current;
         internal static MethodInfo IEnumerator_Object_Current;
 
-        internal static MethodInfo Debugger_Break;
         internal static MethodInfo JavaScriptException_ErrorObject;
         internal static MethodInfo Boolean_Construct;
         internal static MethodInfo Object_Construct;
@@ -95,6 +94,7 @@ namespace Jurassic.Compiler
         internal static MethodInfo Decimal_ToDouble;
         internal static MethodInfo BinderUtilities_ResolveOverloads;
         internal static MethodInfo Convert_ToInt32_Double;
+        internal static MethodInfo Math_Pow;
 
         internal static MethodInfo ObjectInstance_Delete;
         internal static MethodInfo ObjectInstance_DefineProperty;
@@ -106,6 +106,7 @@ namespace Jurassic.Compiler
         internal static MethodInfo ObjectInstance_SetPropertyValue_Int;
         internal static MethodInfo ObjectInstance_SetPropertyValue_PropertyReference;
         internal static MethodInfo ObjectInstance_SetPropertyValueIfExists;
+        internal static MethodInfo ObjectInstance_InitializeMissingProperty;
 
         internal static MethodInfo Scope_ParentScope;
         internal static MethodInfo ObjectScope_CreateRuntimeScope;
@@ -179,6 +180,7 @@ namespace Jurassic.Compiler
             ObjectInstance_SetPropertyValue_Int = GetInstanceMethod(typeof(ObjectInstance), "SetPropertyValue", typeof(uint), typeof(object), typeof(bool));
             ObjectInstance_SetPropertyValue_PropertyReference = GetInstanceMethod(typeof(ObjectInstance), "SetPropertyValue", typeof(PropertyReference), typeof(object), typeof(bool));
             ObjectInstance_SetPropertyValueIfExists = GetInstanceMethod(typeof(ObjectInstance), "SetPropertyValueIfExists", typeof(object), typeof(object), typeof(bool));
+            ObjectInstance_InitializeMissingProperty = GetInstanceMethod(typeof(ObjectInstance), "InitializeMissingProperty", typeof(object), typeof(Library.PropertyAttributes));
 
             Scope_ParentScope = GetInstanceMethod(typeof(Scope), "get_ParentScope");
             ObjectScope_CreateRuntimeScope = GetStaticMethod(typeof(ObjectScope), "CreateRuntimeScope", typeof(Scope), typeof(ObjectInstance), typeof(bool), typeof(bool));
@@ -201,7 +203,7 @@ namespace Jurassic.Compiler
             ScriptEngine_RegExp = GetInstanceMethod(typeof(ScriptEngine), "get_RegExp");
             ScriptEngine_Array = GetInstanceMethod(typeof(ScriptEngine), "get_Array");
             ScriptEngine_Object = GetInstanceMethod(typeof(ScriptEngine), "get_Object");
-            ScriptEngine_CanCatchException = GetInstanceMethod(typeof(ScriptEngine), "CanCatchException", typeof(Exception));
+            ScriptEngine_CanCatchException = GetInstanceMethod(typeof(ScriptEngine), "CanCatchException", typeof(object));
             Global_Eval = GetStaticMethod(typeof(GlobalObject), "Eval", typeof(ScriptEngine), typeof(object), typeof(Scope), typeof(object), typeof(bool));
 
             ScriptEngine_CheckCancellationRequest = GetInstanceMethod(typeof(ScriptEngine), nameof(ScriptEngine.CheckCancellationRequest));
@@ -231,7 +233,6 @@ namespace Jurassic.Compiler
             IEnumerator_MoveNext = GetInstanceMethod(typeof(System.Collections.IEnumerator), "MoveNext");
             IEnumerator_String_Current = GetInstanceMethod(typeof(IEnumerator<string>), "get_Current");
             IEnumerator_Object_Current = GetInstanceMethod(typeof(IEnumerator<object>), "get_Current");
-            Debugger_Break = GetStaticMethod(typeof(System.Diagnostics.Debugger), "Break");
             JavaScriptException_ErrorObject = GetInstanceMethod(typeof(JavaScriptException), "get_ErrorObject");
             Boolean_Construct = GetInstanceMethod(typeof(BooleanConstructor), "Construct", typeof(bool));
             
@@ -257,6 +258,7 @@ namespace Jurassic.Compiler
             Decimal_ToDouble = GetStaticMethod(typeof(decimal), "ToDouble", typeof(decimal));
             BinderUtilities_ResolveOverloads = GetStaticMethod(typeof(BinderUtilities), "ResolveOverloads", typeof(RuntimeMethodHandle[]), typeof(ScriptEngine), typeof(object), typeof(object[]));
             Convert_ToInt32_Double = GetStaticMethod(typeof(Convert), "ToInt32", typeof(double));
+            Math_Pow = GetStaticMethod(typeof(MathObject), "Pow", typeof(double), typeof(double));
 
             Undefined_Value = GetField(typeof(Undefined), "Value");
             Null_Value = GetField(typeof(Null), "Value");

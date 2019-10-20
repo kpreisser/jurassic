@@ -312,7 +312,7 @@ namespace Jurassic.Compiler
                 generator.BranchIfTrue(endOfNullCheck);
                 
                 // Return null.
-                generator.LoadNull();
+                EmitHelpers.EmitNull(generator);
                 generator.Return();
                 
                 // Jump here if it was NOT null.
@@ -324,7 +324,7 @@ namespace Jurassic.Compiler
                 generator.Call(getValue);
 
                 // Now let the normal conversion work.
-                fromType = fromType.GenericTypeArguments[0];
+                fromType = Nullable.GetUnderlyingType(fromType);
             }
 
             switch (Type.GetTypeCode(fromType))

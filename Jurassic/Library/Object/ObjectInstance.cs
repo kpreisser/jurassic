@@ -3,16 +3,20 @@ using System.Collections.Generic;
 using System.Reflection;
 using Jurassic.Compiler;
 using System.Linq;
+using System.Diagnostics;
 
 namespace Jurassic.Library
 {
     /// <summary>
     /// Provides functionality common to all JavaScript objects.
     /// </summary>
-    public partial class ObjectInstance
+    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
+    [DebuggerTypeProxy(typeof(ObjectInstanceDebugView))]
+    public partial class ObjectInstance : IDebuggerDisplay
     {
         // The script engine associated with this object.
         [NonSerialized]
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         private ScriptEngine engine;
 
         // Internal prototype chain.
@@ -118,6 +122,7 @@ namespace Jurassic.Library
         /// <summary>
         /// Gets a reference to the script engine associated with this object.
         /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public ScriptEngine Engine
         {
             get { return this.engine; }
@@ -204,6 +209,40 @@ namespace Jurassic.Library
             }
         }
         
+        /// <summary>
+        /// Gets value, that will be displayed in debugger watch window.
+        /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public virtual string DebuggerDisplayValue
+        {
+            get
+            {
+                IEnumerable<string> strValues =
+                    this.Properties.Select(pnv => 
+                        string.Format("{0}: {1}", pnv.Key, DebuggerDisplayHelper.ShortStringRepresentation(pnv.Value)));
+
+                return string.Format("{{{0}}}", string.Join(", ", strValues));
+            }
+        }
+
+        /// <summary>
+        /// Gets value, that will be displayed in debugger watch window when this object is part of array, map, etc.
+        /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public virtual string DebuggerDisplayShortValue
+        {
+            get { return "{\u2026}"; }
+        }
+
+        /// <summary>
+        /// Gets type, that will be displayed in debugger watch window.
+        /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public virtual string DebuggerDisplayType
+        {
+            get { return "Object"; }
+        }
+
 
 
         //     PROPERTY MANAGEMENT
@@ -825,6 +864,24 @@ namespace Jurassic.Library
                 propertyDictionary.Add(property.Key, new SchemaProperty(nextValueIndex++, property.Attributes));
             }
             this.schema = new HiddenClassSchema(propertyDictionary, nextValueIndex);
+        }
+
+        /// <summary>
+        /// Initializes a property to be <c>undefined</c>, if the property doesn't exist.
+        /// If it does exist, then this method does nothing.
+        /// </summary>
+        /// <param name="key"> The property key of the property. </param>
+        /// <param name="attributes"> The attributes of the new property, if it doesn't exist. </param>
+        public void InitializeMissingProperty(object key, PropertyAttributes attributes)
+        {
+            // Retrieve info on the property.
+            var current = this.schema.GetPropertyIndexAndAttributes(key);
+
+            if (current.Exists == false)
+            {
+                // Create a new property.
+                AddProperty(key, Undefined.Value, attributes, false);
+            }
         }
 
 
