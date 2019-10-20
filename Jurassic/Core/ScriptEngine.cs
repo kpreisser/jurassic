@@ -5,6 +5,7 @@ using Jurassic.Library;
 using Jurassic.Compiler;
 using System.ComponentModel;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 namespace Jurassic
 {
@@ -14,9 +15,6 @@ namespace Jurassic
     /// </summary>
     public sealed class ScriptEngine
     {
-        // If a script cancellation has been requested.
-        private byte cancellationRequested;
-
         // Compatibility mode.
         private CompatibilityMode compatibilityMode;
 
@@ -25,6 +23,12 @@ namespace Jurassic
 
         // The initial hidden class schema.
         private HiddenClassSchema emptySchema;
+
+        // If cancellation checks should be generated.
+        private bool generateCancellationChecks;
+
+        // If a script cancellation has been requested.
+        private byte cancellationRequested;
 
         // The built-in objects.
         private GlobalObject globalObject;
@@ -200,20 +204,14 @@ namespace Jurassic
         /// <summary>
         /// Gets or sets a value that indicates if the current script execution should be cancelled.
         /// When set to <c>true</c> from another thread while script code is executing, a
-        /// <see cref="ScriptCancelledException"/> will be thrown as soon as possible to stop the script.
+        /// <see cref="ScriptCanceledException"/> will be thrown as soon as possible to stop the script.
         /// </summary>
         /// <remarks>This requires that <see cref="GenerateCancellationChecks"/> has been set to true when
         /// compiling the script.</remarks>
         public bool CancellationRequested
         {
-            get
-            {
-                return Thread.VolatileRead(ref this.cancellationRequested) != 0;
-            }
-            set
-            {
-                Thread.VolatileWrite(ref this.cancellationRequested, (byte)(value ? 1 : 0));
-            }
+            get => Thread.VolatileRead(ref this.cancellationRequested) != 0;
+            set => Thread.VolatileWrite(ref this.cancellationRequested, (byte)(value ? 1 : 0));
         }
 
         /// <summary>
@@ -234,8 +232,8 @@ namespace Jurassic
         /// </summary>
         public bool GenerateCancellationChecks
         {
-            get;
-            set;
+            get => this.generateCancellationChecks;
+            set => this.generateCancellationChecks = value;
         }
 
         /// <summary>
@@ -1507,6 +1505,11 @@ namespace Jurassic
             processingPendingCallbacks = true;
             while (pendingCallbacks.Count > 0)
             {
+                if (this.generateCancellationChecks)
+                {
+                    CheckCancellationRequest();
+                }
+
                 var instance = pendingCallbacks.Dequeue();
                 instance.Invoke();
             }
@@ -1519,14 +1522,15 @@ namespace Jurassic
 
         /// <summary>
         /// Checks whether script cancellation has been requested, and throws a
-        /// <see cref="ScriptCancelledException"/> in that case.
+        /// <see cref="ScriptCanceledException"/> in that case.
         /// </summary>
-        /// <exception cref="ScriptCancelledException">When cancellation has been requested</exception>
+        /// <exception cref="ScriptCanceledException">When cancellation has been requested</exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void CheckCancellationRequest()
         {
             if (Thread.VolatileRead(ref this.cancellationRequested) != 0)
             {
-                throw new ScriptCancelledException("Script execution has been cancelled.");
+                throw new ScriptCanceledException("Script execution has been canceled.");
             }
         }
     }
