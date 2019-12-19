@@ -109,6 +109,15 @@ namespace Jurassic.Library
         }
 
         /// <summary>
+        /// 
+        /// </summary>
+        public object Tag
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
         /// Sets the stack trace information.
         /// </summary>
         /// <param name="path"> The path of the javascript source file that is currently executing. </param>
