@@ -44,7 +44,7 @@ namespace Jurassic.Library
             var result = engine.Object.Construct();
             var properties = GetDeclarativeProperties(engine);
             properties.Add(new PropertyNameAndValue("constructor", constructor, PropertyAttributes.NonEnumerable));
-            result.FastSetProperties(properties);
+            result.InitializeProperties(properties);
             return result;
         }
 
@@ -693,6 +693,26 @@ namespace Jurassic.Library
         public static string Trim(string thisObject)
         {
             return thisObject.Trim(trimCharacters);
+        }
+
+        /// <summary>
+        /// Trims whitespace from the beginning of the string.
+        /// </summary>
+        /// <returns></returns>
+        [JSInternalFunction(Name = "trimStart", Flags = JSFunctionFlags.HasThisObject)]
+        public static string TrimStart(string thisObject)
+        {
+            return thisObject.TrimStart(trimCharacters);
+        }
+
+        /// <summary>
+        /// Trims whitespace from the beginning of the string.
+        /// </summary>
+        /// <returns></returns>
+        [JSInternalFunction(Name = "trimEnd", Flags = JSFunctionFlags.HasThisObject)]
+        public static string TrimEnd(string thisObject)
+        {
+            return thisObject.TrimEnd(trimCharacters);
         }
 
         /// <summary>

@@ -23,7 +23,7 @@ namespace Jurassic.Library
             // Initialize the constructor properties.
             var properties = GetDeclarativeProperties(Engine);
             InitializeConstructorProperties(properties, "Object", 1, instancePrototype);
-            FastSetProperties(properties);
+            InitializeProperties(properties);
         }
 
 
@@ -82,6 +82,32 @@ namespace Jurassic.Library
             if (result == null)
                 return Null.Value;
             return result;
+        }
+
+        /// <summary>
+        /// Sets the prototype of a specified object to another object or null.
+        /// </summary>
+        /// <param name="obj"> The object which is to have its prototype set. </param>
+        /// <param name="prototype"> The object's new prototype (an object or <c>null</c>). </param>
+        /// <returns> The specified object. </returns>
+        [JSInternalFunction(Name = "setPrototypeOf")]
+        public static ObjectInstance SetPrototypeOf(ObjectInstance obj, object prototype)
+        {
+            // The prototype must be null or an object. Note that null in .NET is actually undefined in JS!
+            var prototypeObj = prototype as ObjectInstance;
+            if (prototypeObj == null && prototype != Null.Value)
+                throw new JavaScriptException(obj.Engine, ErrorType.TypeError, "Object prototype may only be an Object or null.");
+
+            // Attempt to set the prototype.
+            if (!obj.SetPrototype(prototypeObj))
+            {
+                // Attempt to throw a reasonable error message based on what we know about how SetPrototype works.
+                if (!obj.IsExtensible)
+                    throw new JavaScriptException(obj.Engine, ErrorType.TypeError, "Object is not extensible.");
+                throw new JavaScriptException(obj.Engine, ErrorType.TypeError, "Prototype chain contains a cyclic reference.");
+            }
+
+            return obj;
         }
 
         /// <summary>
@@ -224,17 +250,20 @@ namespace Jurassic.Library
         /// <param name="obj"> The object to modify. </param>
         /// <returns> The object that was affected. </returns>
         [JSInternalFunction(Name = "seal")]
-        public static ObjectInstance Seal(ObjectInstance obj)
+        public static object Seal(object obj)
         {
-            var properties = new List<PropertyNameAndValue>();
-            foreach (var property in obj.Properties)
-                properties.Add(property);
-            foreach (var property in properties)
+            if (obj is ObjectInstance objectInstance)
             {
-                obj.FastSetProperty(property.Key, property.Value,
-                    property.Attributes & ~PropertyAttributes.Configurable, overwriteAttributes: true);
+                var properties = new List<PropertyNameAndValue>();
+                foreach (var property in objectInstance.Properties)
+                    properties.Add(property);
+                foreach (var property in properties)
+                {
+                    objectInstance.FastSetProperty(property.Key, property.Value,
+                        property.Attributes & ~PropertyAttributes.Configurable, overwriteAttributes: true);
+                }
+                objectInstance.IsExtensible = false;
             }
-            obj.IsExtensible = false;
             return obj;
         }
 
@@ -244,17 +273,20 @@ namespace Jurassic.Library
         /// <param name="obj"> The object to modify. </param>
         /// <returns> The object that was affected. </returns>
         [JSInternalFunction(Name = "freeze")]
-        public static ObjectInstance Freeze(ObjectInstance obj)
+        public static object Freeze(object obj)
         {
-            var properties = new List<PropertyNameAndValue>();
-            foreach (var property in obj.Properties)
-                properties.Add(property);
-            foreach (var property in properties)
+            if (obj is ObjectInstance objectInstance)
             {
-                obj.FastSetProperty(property.Key, property.Value,
-                    property.Attributes & ~(PropertyAttributes.NonEnumerable), overwriteAttributes: true);
+                var properties = new List<PropertyNameAndValue>();
+                foreach (var property in objectInstance.Properties)
+                    properties.Add(property);
+                foreach (var property in properties)
+                {
+                    objectInstance.FastSetProperty(property.Key, property.Value,
+                        property.Attributes & ~(PropertyAttributes.NonEnumerable), overwriteAttributes: true);
+                }
+                objectInstance.IsExtensible = false;
             }
-            obj.IsExtensible = false;
             return obj;
         }
 
@@ -264,9 +296,12 @@ namespace Jurassic.Library
         /// <param name="obj"> The object to modify. </param>
         /// <returns> The object that was affected. </returns>
         [JSInternalFunction(Name = "preventExtensions")]
-        public static ObjectInstance PreventExtensions(ObjectInstance obj)
+        public static object PreventExtensions(object obj)
         {
-            obj.IsExtensible = false;
+            if (obj is ObjectInstance objectInstance)
+            {
+                objectInstance.IsExtensible = false;
+            }
             return obj;
         }
 
@@ -338,6 +373,32 @@ namespace Jurassic.Library
         public static bool Is(object value1, object value2)
         {
             return TypeComparer.SameValue(value1, value2);
+        }
+
+        /// <summary>
+        /// Transforms a list of key-value pairs into an object.
+        /// </summary>
+        /// <param name="iterable"> An iterable such as Array or Map. </param>
+        /// <returns> A new object whose properties are given by the entries of the iterable. </returns>
+        [JSInternalFunction(Name = "fromEntries")]
+        public static ObjectInstance FromEntries(ObjectInstance iterable)
+        {
+            var result = iterable.Engine.Object.Construct();
+            var iterator = TypeUtilities.RequireIterator(iterable.Engine, iterable);
+            foreach (var entry in TypeUtilities.Iterate(iterator.Engine, iterator))
+            {
+                if (entry is ObjectInstance entryObject)
+                {
+                    var propertyKey = entryObject[0];
+                    if (!(propertyKey is string) && !(propertyKey is SymbolInstance))
+                        propertyKey = TypeConverter.ToString(propertyKey);
+                    var propertyValue = entryObject[1];
+                    result[propertyKey] = propertyValue;
+                }
+                else
+                    throw new JavaScriptException(iterable.Engine, ErrorType.TypeError, $"Iterator value {TypeConverter.ToString(entry)} is not an entry object.");
+            }
+            return result;
         }
     }
 }

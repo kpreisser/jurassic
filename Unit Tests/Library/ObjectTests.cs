@@ -432,10 +432,11 @@ namespace UnitTests
             // length
             Assert.AreEqual(1, Evaluate("Object.seal.length"));
 
-            // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.seal()"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.seal(undefined)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.seal(null)"));
+            // If the argument is not an object, this method does nothing.
+            Assert.AreEqual(true, Evaluate("Object.seal() === undefined"));
+            Assert.AreEqual(true, Evaluate("Object.seal(undefined) === undefined"));
+            Assert.AreEqual(true, Evaluate("Object.seal(null) === null"));
+            Assert.AreEqual(true, Evaluate("Object.seal(5) === 5"));
         }
 
         [TestMethod]
@@ -454,10 +455,11 @@ namespace UnitTests
             // length
             Assert.AreEqual(1, Evaluate("Object.freeze.length"));
 
-            // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.freeze()"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.freeze(undefined)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.freeze(null)"));
+            // If the argument is not an object, this method does nothing.
+            Assert.AreEqual(true, Evaluate("Object.freeze() === undefined"));
+            Assert.AreEqual(true, Evaluate("Object.freeze(undefined) === undefined"));
+            Assert.AreEqual(true, Evaluate("Object.freeze(null) === null"));
+            Assert.AreEqual(true, Evaluate("Object.freeze(5) === 5"));
         }
 
         [TestMethod]
@@ -476,10 +478,11 @@ namespace UnitTests
             // length
             Assert.AreEqual(1, Evaluate("Object.preventExtensions.length"));
 
-            // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.preventExtensions()"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.preventExtensions(undefined)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.preventExtensions(null)"));
+            // If the argument is not an object, this method does nothing.
+            Assert.AreEqual(true, Evaluate("Object.preventExtensions() === undefined"));
+            Assert.AreEqual(true, Evaluate("Object.preventExtensions(undefined) === undefined"));
+            Assert.AreEqual(true, Evaluate("Object.preventExtensions(null) === null"));
+            Assert.AreEqual(true, Evaluate("Object.preventExtensions(5) === 5"));
         }
 
         [TestMethod]
@@ -732,12 +735,23 @@ namespace UnitTests
         }
 
         [TestMethod]
-        [Ignore]    // not supported yet.
         public void setPrototypeOf()
         {
-            Assert.AreEqual(5, Evaluate("var a = {}; Object.setPrototypeOf(a, Math); a.abs(-5)"));
             Assert.AreEqual(true, Evaluate("var a = {}; Object.setPrototypeOf(a, Math); Object.getPrototypeOf(a) === Math"));
+            Assert.AreEqual(true, Evaluate("var a = {}; Object.setPrototypeOf(a, null); Object.getPrototypeOf(a) === null"));
+            Assert.AreEqual(5, Evaluate("var a = {}; Object.setPrototypeOf(a, Math); a.abs(-5)"));
+
+            // length
+            Assert.AreEqual(2, Evaluate("Object.setPrototypeOf.length"));
+
+            // Argument must be an object or null.
+            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.setPrototypeOf({}, undefined)"));
+
+            // Object must be extensible.
             Assert.AreEqual("TypeError", EvaluateExceptionType("Object.setPrototypeOf(Object.preventExtensions({}), {})"));
+
+            // No cyclic references.
+            Assert.AreEqual("TypeError", EvaluateExceptionType("var a = {}; Object.setPrototypeOf(a, a)"));
         }
 
         [TestMethod]
@@ -754,6 +768,20 @@ namespace UnitTests
             Assert.AreEqual(0, Evaluate("var a = {}; Object.getOwnPropertySymbols(a).length"));
             Assert.AreEqual(2, Evaluate("var b = {}; b[Symbol('one')] = 1; b[Symbol('two')] = 2; Object.getOwnPropertySymbols(b).length"));
             Assert.AreEqual("Symbol(one)", Evaluate("var b = {}; b[Symbol('one')] = 1; b[Symbol('two')] = 2; Object.getOwnPropertySymbols(b)[0].toString()"));
+        }
+
+        [TestMethod]
+        public void fromEntries()
+        {
+            Assert.AreEqual(Undefined.Value, Evaluate("Object.fromEntries([[1]])[1]"));
+            Assert.AreEqual(2, Evaluate("Object.fromEntries([['a', 1], ['a', 2]]).a"));
+
+            // Errors
+            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.fromEntries(5)"));
+            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.fromEntries([1])"));
+
+            // length
+            Assert.AreEqual(1, Evaluate("Object.fromEntries.length"));
         }
     }
 }

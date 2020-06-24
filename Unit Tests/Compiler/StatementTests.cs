@@ -152,6 +152,32 @@ namespace UnitTests
             // for (var x of <expression>)
             Assert.AreEqual(206, Evaluate("y = 0; for (var x of [93, 113]) { y += x } y"));
 
+            // Iterate over a generator.
+            Assert.AreEqual("2 3 4 5 ", Evaluate(@"
+                var range = {
+                  from: 2,
+                  to: 5
+                };
+                // 1. call to for..of initially calls this
+                range[Symbol.iterator] = function() {
+                  // ...it returns the iterator object:
+                  // 2. Onward, for..of works only with this iterator, asking it for next values
+                  return {
+                    current: this.from,
+                    last: this.to,
+                    // 3. next() is called on each iteration by the for..of loop
+                    next() {
+                      // 4. it should return the value as an object {done:.., value :...}
+                      if (this.current <= this.last) {
+                        return { done: false, value: this.current++ };
+                      } else {
+                        return { done: true };
+                      }
+                    }
+                  };
+                };
+                y = ''; for (var x of range) { y += x + ' ' } y"));
+
             // Type errors.
             Assert.AreEqual("TypeError", EvaluateExceptionType("for (x of 1) {}"));
             Assert.AreEqual("TypeError", EvaluateExceptionType("for (x of null) {}"));
@@ -162,8 +188,6 @@ namespace UnitTests
             Assert.AreEqual("SyntaxError", EvaluateExceptionType("for (x of [1, 2], [3, 4]) {}"));
             Assert.AreEqual("SyntaxError", EvaluateExceptionType("for (5 of [1, 2])"));
             Assert.AreEqual("SyntaxError", EvaluateExceptionType("for (var 5 of [1, 2])"));
-
-            // TODO: iterate over a generator.
         }
 
         [TestMethod]
@@ -391,6 +415,7 @@ namespace UnitTests
             Assert.AreEqual(5, Evaluate("e = 5; try { throw 6; } catch (e) { } e"));
             Assert.AreEqual(5, Evaluate("e = 5; try { throw 6; } catch (e) { var e = 10; } e"));
             Assert.AreEqual(5, Evaluate("var b = 2; try { throw 6; } catch (e) { var b = 5; } b"));
+            Assert.AreEqual(5, Evaluate("var b = 2; try { throw 6; } catch { var b = 5; } b"));
 
             // Try without catch or finally is an error.
             Assert.AreEqual("SyntaxError", EvaluateExceptionType("try { }"));
@@ -410,6 +435,12 @@ namespace UnitTests
             Assert.AreEqual(6, Evaluate("var j = 0; for (var i = 0; i < 3; i ++) { try { throw 5; } catch (e) { j ++; } finally { j ++; continue; } j = 0; } j"));
             Assert.AreEqual(4, Evaluate("var j = 0; try { for (var i = 0; i < 3; i ++) { j ++; continue; j ++; } } finally { j ++; } j"));
             Assert.AreEqual(4, Evaluate("var j = 0; try { j ++ } finally { for (var i = 0; i < 3; i ++) { j ++; continue; j ++; } } j"));
+
+            // Catch binding is optional in ECMAScript 2019.
+            Assert.AreEqual(6, Evaluate("(function() { try { throw 5 } catch { return 6 } })()"));
+
+            // Errors.
+            Assert.AreEqual("SyntaxError", EvaluateExceptionType("(function() { try { throw 5 } catch (a, b) { return 6 } })()"));
 
             var scriptEngine = new ScriptEngine();
 
@@ -443,7 +474,7 @@ namespace UnitTests
             // AND if the catch block is not run then the finally block shouldn't run either.
             scriptEngine.SetGlobalFunction("test", new Action(() =>
             {
-                throw new JavaScriptException(jurassicScriptEngine, ErrorType.Error, "This is a test.");
+                throw new JavaScriptException(ScriptEngine, ErrorType.Error, "This is a test.");
             }));
             try
             {
@@ -489,7 +520,7 @@ namespace UnitTests
             // The finally block shouldn't run for exceptions from other script engines.
             scriptEngine.SetGlobalFunction("test", new Action(() =>
             {
-                throw new JavaScriptException(jurassicScriptEngine, ErrorType.Error, "This is a test.");
+                throw new JavaScriptException(ScriptEngine, ErrorType.Error, "This is a test.");
             }));
             try
             {

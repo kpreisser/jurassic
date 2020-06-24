@@ -685,6 +685,41 @@ namespace UnitTests
                     success = this === undefined;
                 });
                 success"));
+
+            // sort() should be stable.
+            Assert.AreEqual(
+                @"[{""name"":""Mangy"",""rating"":14}," +
+                @"{""name"":""Milly"",""rating"":14}," +
+                @"{""name"":""Patches"",""rating"":14}," +
+                @"{""name"":""Devlin"",""rating"":13}," +
+                @"{""name"":""Eagle"",""rating"":13}," +
+                @"{""name"":""Jenny"",""rating"":13}," +
+                @"{""name"":""Kona"",""rating"":13}," +
+                @"{""name"":""Leila"",""rating"":13}," +
+                @"{""name"":""Oliver"",""rating"":13}," +
+                @"{""name"":""Bobby"",""rating"":12}," +
+                @"{""name"":""Choco"",""rating"":12}," +
+                @"{""name"":""Koin"",""rating"":12}," +
+                @"{""name"":""Molly"",""rating"":12}," +
+                @"{""name"":""Nova"",""rating"":12}," +
+                @"{""name"":""Spot"",""rating"":12}]",
+                Evaluate(@"JSON.stringify([
+		        { name: 'Bobby',   rating: 12 },
+		        { name: 'Devlin',  rating: 13 },
+		        { name: 'Eagle',   rating: 13 },
+                { name: 'Choco',   rating: 12 },
+                { name: 'Mangy',   rating: 14 },
+		        { name: 'Jenny',   rating: 13 },
+		        { name: 'Koin',    rating: 12 },
+		        { name: 'Kona',    rating: 13 },
+		        { name: 'Leila',   rating: 13 },
+		        { name: 'Milly',   rating: 14 },
+		        { name: 'Molly',   rating: 12 },
+		        { name: 'Nova',    rating: 12 },
+		        { name: 'Oliver',  rating: 13 },
+		        { name: 'Patches', rating: 14 },
+                { name: 'Spot',    rating: 12 },
+	        ].sort(function (a, b) { return b.rating - a.rating; }));"));
         }
 
         [TestMethod]
@@ -1369,6 +1404,115 @@ namespace UnitTests
 
             // length
             Assert.AreEqual(1, Evaluate("Array.prototype.includes.length"));
+        }
+
+        [TestMethod]
+        public void flat()
+        {
+            // flat()
+            Assert.AreEqual("1,2,3,4,5,6,7,8,9", Evaluate("[1, 2, 3, [4, 5, 6, [7, 8, 9]]].flat().toString()"));
+            Assert.AreEqual(7, Evaluate("[1, 2, 3, [4, 5, 6, [7, 8, 9]]].flat().length"));
+
+            // flat(depth)
+            Assert.AreEqual("1,2,3,4,5,6,7,8,9", Evaluate("[1, 2, 3, [4, 5, 6, [7, 8, 9]]].flat(1).toString()"));
+            Assert.AreEqual(7, Evaluate("[1, 2, 3, [4, 5, 6, [7, 8, 9]]].flat(1).length"));
+            Assert.AreEqual("1,2,3,4,5,6,7,8,9", Evaluate("[1, 2, 3, [4, 5, 6, [7, 8, 9]]].flat(2).toString()"));
+            Assert.AreEqual(9, Evaluate("[1, 2, 3, [4, 5, 6, [7, 8, 9]]].flat(2).length"));
+            Assert.AreEqual("1,2,3,4,5,6,7,8,9", Evaluate("[1, 2, 3, [4, 5, 6, [7, 8, 9]]].flat(Infinity).toString()"));
+            Assert.AreEqual(9, Evaluate("[1, 2, 3, [4, 5, 6, [7, 8, 9]]].flat(Infinity).length"));
+
+            // Missing elements
+            Assert.AreEqual("1,3,5", Evaluate("[1,,,3,,,5].flat().toString()"));
+            Assert.AreEqual(3, Evaluate("[1,,,3,,,5].flat().length"));
+
+            // length
+            Assert.AreEqual(0, Evaluate("Array.prototype.flat.length"));
+        }
+
+        [TestMethod]
+        public void flatMap()
+        {
+            // flatMap(callback)
+            Assert.AreEqual("5,6,7", Evaluate("[4, 5, 6].flatMap(function(value, index, array) { return value + 1; }).toString()"));
+            Assert.AreEqual("1,2,3", Evaluate("[4, 5, 6].flatMap(function(value, index, array) { return index + 1; }).toString()"));
+            Assert.AreEqual("true,true,true", Evaluate("a = [4, 5, 6]; a.flatMap(function(value, index, array) { return a === array; }).toString()"));
+
+            // flatMap(callback, thisArg)
+            Assert.AreEqual("ha,ha,ha", Evaluate("[4, 5, 6].flatMap(function(value, index, array) { return this; }, 'ha').toString()"));
+
+            // Missing elements
+            Assert.AreEqual("2,4", Evaluate("[1,,3].flatMap(function(v) { return v + 1; }).toString()"));
+
+            // A mapper function is required.
+            Assert.AreEqual("TypeError", EvaluateExceptionType("[4, 5, 6].flatMap(7)"));
+
+            // length
+            Assert.AreEqual(0, Evaluate("Array.prototype.flat.length"));
+        }
+
+
+        [TestMethod]
+        public void of()
+        {
+            // Zero element.
+            Assert.AreEqual("", Evaluate("Array.of().toString()"));
+            Assert.AreEqual(0, Evaluate("Array.of().length"));
+
+            // One element.
+            Assert.AreEqual("4", Evaluate("Array.of(4).toString()"));
+            Assert.AreEqual(1, Evaluate("Array.of(4).length"));
+
+            // Many elements.
+            Assert.AreEqual("1,2,3", Evaluate("Array.of(1, 2, 3).toString()"));
+            Assert.AreEqual(3, Evaluate("Array.of(1, 2, 3).length"));
+
+            // length
+            Assert.AreEqual(0, Evaluate("Array.of.length"));
+        }
+
+        [TestMethod]
+        public void from()
+        {
+            // Iterable.
+            Assert.AreEqual("1,2,3,4,5", Evaluate(@"
+                var range = {
+                  from: 1,
+                  to: 5
+                };
+                // 1. call to for..of initially calls this
+                range[Symbol.iterator] = function() {
+                  // ...it returns the iterator object:
+                  // 2. Onward, for..of works only with this iterator, asking it for next values
+                  return {
+                    current: this.from,
+                    last: this.to,
+                    // 3. next() is called on each iteration by the for..of loop
+                    next() {
+                      // 4. it should return the value as an object {done:.., value :...}
+                      if (this.current <= this.last) {
+                        return { done: false, value: this.current++ };
+                      } else {
+                        return { done: true };
+                      }
+                    }
+                  };
+                };
+                Array.from(range).toString();"));
+
+            // Array-like.
+            Assert.AreEqual("5,6", Evaluate("var x = { length: 2 }; x[0] = 5; x[1] = 6; Array.from(x).toString()"));
+            Assert.AreEqual(2, Evaluate("var x = { length: 2 }; x[0] = 5; x[1] = 6; Array.from(x).length"));
+
+            // Mapping function.
+            Assert.AreEqual("4,5", Evaluate("Array.from([3, 4], function (value, index) { return value + 1; }).toString()"));
+            Assert.AreEqual("0,1", Evaluate("Array.from([1, 2], function (value, index) { return index; }).toString()"));
+            Assert.AreEqual("6,6", Evaluate("Array.from([1, 2], function (value, index) { return this; }, 6).toString()"));
+
+            // The first parameter is required.
+            Assert.AreEqual("TypeError", EvaluateExceptionType("Array.from()"));
+
+            // length
+            Assert.AreEqual(1, Evaluate("Array.from.length"));
         }
     }
 }

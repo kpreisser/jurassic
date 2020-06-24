@@ -57,7 +57,7 @@ namespace Jurassic.Library
         /// <summary>
         /// Called by derived classes to create a new object instance.
         /// </summary>
-        /// <param name="prototype"> The next object in the prototype chain.  Cannot be <c>null</c>. </param>
+        /// <param name="prototype"> The next object in the prototype chain. Cannot be <c>null</c>. </param>
         protected ObjectInstance(ObjectInstance prototype)
         {
             if (prototype == null)
@@ -71,7 +71,7 @@ namespace Jurassic.Library
         /// Called by derived classes to create a new object instance.
         /// </summary>
         /// <param name="engine"> The script engine associated with this object. </param>
-        /// <param name="prototype"> The next object in the prototype chain.  Can be <c>null</c>. </param>
+        /// <param name="prototype"> The next object in the prototype chain. Can be <c>null</c>. </param>
         protected ObjectInstance(ScriptEngine engine, ObjectInstance prototype)
         {
             if (engine == null)
@@ -111,7 +111,7 @@ namespace Jurassic.Library
             var engine = obj.Engine;
             var properties = GetDeclarativeProperties(engine);
             properties.Add(new PropertyNameAndValue("constructor", constructor, PropertyAttributes.NonEnumerable));
-            obj.FastSetProperties(properties);
+            obj.InitializeProperties(properties);
         }
 
 
@@ -249,6 +249,35 @@ namespace Jurassic.Library
         //_________________________________________________________________________________________
 
         /// <summary>
+        /// Implements Object.setPrototypeOf().
+        /// </summary>
+        /// <param name="prototype"> The new prototype. </param>
+        /// <returns> <c>true</c> if the prototype was successfully applied; <c>false</c> otherwise. </returns>
+        internal bool SetPrototype(ObjectInstance prototype)
+        {
+            // If the new prototype is the same as the existing one, return success.
+            if (this.prototype == prototype)
+                return true;
+
+            // Can only set the prototype on extensible objects.
+            if (!IsExtensible)
+                return false;
+
+            // Check there are no circular references in the prototype chain.
+            var ancestor = prototype;
+            while (ancestor != null)
+            {
+                if (ancestor == this)
+                    return false;
+                ancestor = ancestor.Prototype;
+            }
+
+            // Set the new prototype.
+            this.prototype = prototype;
+            return true;
+        }
+
+        /// <summary>
         /// Determines if a property with the given name exists.
         /// </summary>
         /// <param name="key"> The property key (either a string or a Symbol). </param>
@@ -340,6 +369,19 @@ namespace Jurassic.Library
 
             // Otherwise, the property is a name.
             return GetNamedPropertyValue(key, this);
+        }
+
+        /// <summary>
+        /// Gets the value of the property with the given name.
+        /// </summary>
+        /// <param name="key"> The property key (either a string or a Symbol). </param>
+        /// <param name="value"> Receives the value of the property, or <c>null</c> if the property
+        /// doesn't exist. </param>
+        /// <returns> <c>true</c> if the value exists, <c>false</c> otherwise. </returns>
+        public bool TryGetPropertyValue(object key, out object value)
+        {
+            value = GetPropertyValue(key);
+            return value != null;
         }
 
         /// <summary>
@@ -846,13 +888,13 @@ namespace Jurassic.Library
         }
 
         /// <summary>
-        /// Sets up multiple properties at once.
+        /// Sets up multiple properties at once. Can only be called on an empty object.
         /// </summary>
         /// <param name="properties"> The list of properties to set. </param>
-        internal void FastSetProperties(IEnumerable<PropertyNameAndValue> properties)
+        public void InitializeProperties(IEnumerable<PropertyNameAndValue> properties)
         {
             if (this.schema.NextValueIndex != 0)
-                throw new InvalidOperationException("This method can only be called on a virgin object (one with no properties).");
+                throw new InvalidOperationException("This method can only be called on an empty object (one with no properties).");
 
             if (this.propertyValues.Length < properties.Count())
                 this.propertyValues = new object[properties.Count()];

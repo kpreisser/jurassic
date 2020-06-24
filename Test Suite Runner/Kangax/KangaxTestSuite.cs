@@ -1,6 +1,7 @@
 ﻿using Jurassic.Library;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -45,30 +46,33 @@ namespace Jurassic.TestSuiteRunner
         {
             using (var pipeServer = new PipeServer(Id))
             {
-                var entries = JsonConvert.DeserializeObject<CompatTableEntry[]>(File.ReadAllText(@"Kangax\compat-table.json"));
+                var dir = @"..\..\..\Kangax\";
+                var globalScript = File.ReadAllText(Path.Combine(dir, "global.js"));
+                var entries = JsonConvert.DeserializeObject<CompatTableEntry[]>(File.ReadAllText(Path.Combine(dir, "compat-table.json")));
                 foreach (var testCase in entries)
                 {
                     try
                     {
-                        testCase.Response = Send(pipeServer, new WorkerProcessRequest { Script = $"(function () {{ {testCase.script} }})();" });
-                        if (testCase.Response.JsonResult == "true")
+                        testCase.Response = Send(pipeServer, new WorkerProcessRequest
+                        {
+                            VariablesToReturn = new[] { "__asyncTestPassed" },
+                            Script = globalScript + Environment.NewLine + $"(function () {{ {testCase.script} }})();"
+                        });
+                        if (testCase.Response.JsonResult == "true" || testCase.Response.Variables?["__asyncTestPassed"] == "true")
                             testCase.Success = true;
-                        if (testCase.Success == false && Array.IndexOf(
-                            new string[]
-                            {
-                                "default function parameters",
-                                "for..of loops",
-                                "template literals",
-                                "typed arrays",
-                                "WeakMap",
-                                "Set",
-                                "WeakMap",
-                                "WeakSet",
-                                "Object static methods",
-                                @"function ""name"" property",
-                                "Array static methods",
-                                "Array.prototype methods",
-                            }, testCase.name) >= 0)
+                        if (testCase.Success == false &&
+                            !testCase.name.StartsWith("Proxy") &&
+                            !testCase.name.StartsWith("Reflect") &&
+                            !testCase.name.StartsWith("generators") &&
+                            !testCase.name.StartsWith("class") &&
+                            !testCase.name.StartsWith("super") &&
+                            !testCase.name.StartsWith("arrow functions") &&
+                            !testCase.name.StartsWith("let") &&
+                            !testCase.name.StartsWith("const") &&
+                            !testCase.name.StartsWith("destructuring") &&
+                            !testCase.name.StartsWith("spread syntax for iterable objects") &&
+                            !testCase.name.StartsWith("miscellaneous subclassables") &&
+                            !testCase.name.Contains("is subclassable"))
                         {
                             Console.WriteLine($"{testCase.name} -- {testCase.detail}, result: {testCase.Response.JsonResult ?? $"{testCase.Response.ErrorType}: {testCase.Response.ErrorMessage}"}");
                         }
@@ -138,6 +142,12 @@ namespace Jurassic.TestSuiteRunner
                 // Execute the provided script.
                 object result = engine.Evaluate(request.Script);
                 response.JsonResult = JSONObject.Stringify(engine, result);
+                if (request.VariablesToReturn != null)
+                {
+                    response.Variables = new Dictionary<string, string>();
+                    foreach (var variableName in request.VariablesToReturn)
+                        response.Variables[variableName] = engine.GetGlobalValue<string>(variableName);
+                }
             }
             catch (Exception e)
             {

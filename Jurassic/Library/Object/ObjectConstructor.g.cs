@@ -12,24 +12,26 @@ namespace Jurassic.Library
 	{
 		private static List<PropertyNameAndValue> GetDeclarativeProperties(ScriptEngine engine)
 		{
-			return new List<PropertyNameAndValue>(20)
+			return new List<PropertyNameAndValue>(22)
 			{
-				new PropertyNameAndValue("getPrototypeOf", new ClrStubFunction(engine.FunctionInstancePrototype, "getPrototypeOf", 1, __STUB__GetPrototypeOf), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("getOwnPropertyDescriptor", new ClrStubFunction(engine.FunctionInstancePrototype, "getOwnPropertyDescriptor", 2, __STUB__GetOwnPropertyDescriptor), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("getOwnPropertyNames", new ClrStubFunction(engine.FunctionInstancePrototype, "getOwnPropertyNames", 1, __STUB__GetOwnPropertyNames), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("getOwnPropertySymbols", new ClrStubFunction(engine.FunctionInstancePrototype, "getOwnPropertySymbols", 1, __STUB__GetOwnPropertySymbols), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("create", new ClrStubFunction(engine.FunctionInstancePrototype, "create", 2, __STUB__Create), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("assign", new ClrStubFunction(engine.FunctionInstancePrototype, "assign", 2, __STUB__Assign), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("defineProperty", new ClrStubFunction(engine.FunctionInstancePrototype, "defineProperty", 3, __STUB__DefineProperty), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("defineProperties", new ClrStubFunction(engine.FunctionInstancePrototype, "defineProperties", 2, __STUB__DefineProperties), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("seal", new ClrStubFunction(engine.FunctionInstancePrototype, "seal", 1, __STUB__Seal), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("freeze", new ClrStubFunction(engine.FunctionInstancePrototype, "freeze", 1, __STUB__Freeze), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("preventExtensions", new ClrStubFunction(engine.FunctionInstancePrototype, "preventExtensions", 1, __STUB__PreventExtensions), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("isSealed", new ClrStubFunction(engine.FunctionInstancePrototype, "isSealed", 1, __STUB__IsSealed), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("isFrozen", new ClrStubFunction(engine.FunctionInstancePrototype, "isFrozen", 1, __STUB__IsFrozen), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("isExtensible", new ClrStubFunction(engine.FunctionInstancePrototype, "isExtensible", 1, __STUB__IsExtensible), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("keys", new ClrStubFunction(engine.FunctionInstancePrototype, "keys", 1, __STUB__Keys), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("is", new ClrStubFunction(engine.FunctionInstancePrototype, "is", 2, __STUB__Is), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("getPrototypeOf", new ClrStubFunction(engine, "getPrototypeOf", 1, __STUB__GetPrototypeOf), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("setPrototypeOf", new ClrStubFunction(engine, "setPrototypeOf", 2, __STUB__SetPrototypeOf), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("getOwnPropertyDescriptor", new ClrStubFunction(engine, "getOwnPropertyDescriptor", 2, __STUB__GetOwnPropertyDescriptor), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("getOwnPropertyNames", new ClrStubFunction(engine, "getOwnPropertyNames", 1, __STUB__GetOwnPropertyNames), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("getOwnPropertySymbols", new ClrStubFunction(engine, "getOwnPropertySymbols", 1, __STUB__GetOwnPropertySymbols), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("create", new ClrStubFunction(engine, "create", 2, __STUB__Create), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("assign", new ClrStubFunction(engine, "assign", 2, __STUB__Assign), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("defineProperty", new ClrStubFunction(engine, "defineProperty", 3, __STUB__DefineProperty), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("defineProperties", new ClrStubFunction(engine, "defineProperties", 2, __STUB__DefineProperties), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("seal", new ClrStubFunction(engine, "seal", 1, __STUB__Seal), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("freeze", new ClrStubFunction(engine, "freeze", 1, __STUB__Freeze), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("preventExtensions", new ClrStubFunction(engine, "preventExtensions", 1, __STUB__PreventExtensions), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("isSealed", new ClrStubFunction(engine, "isSealed", 1, __STUB__IsSealed), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("isFrozen", new ClrStubFunction(engine, "isFrozen", 1, __STUB__IsFrozen), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("isExtensible", new ClrStubFunction(engine, "isExtensible", 1, __STUB__IsExtensible), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("keys", new ClrStubFunction(engine, "keys", 1, __STUB__Keys), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("is", new ClrStubFunction(engine, "is", 2, __STUB__Is), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("fromEntries", new ClrStubFunction(engine, "fromEntries", 1, __STUB__FromEntries), PropertyAttributes.NonEnumerable),
 			};
 		}
 
@@ -69,6 +71,19 @@ namespace Jurassic.Library
 					throw new JavaScriptException(engine, ErrorType.TypeError, "undefined cannot be converted to an object");
 				default:
 					return GetPrototypeOf(TypeConverter.ToObject(engine, args[0]));
+			}
+		}
+
+		private static object __STUB__SetPrototypeOf(ScriptEngine engine, object thisObj, object[] args)
+		{
+			switch (args.Length)
+			{
+				case 0:
+					throw new JavaScriptException(engine, ErrorType.TypeError, "undefined cannot be converted to an object");
+				case 1:
+					return SetPrototypeOf(TypeConverter.ToObject(engine, args[0]), Undefined.Value);
+				default:
+					return SetPrototypeOf(TypeConverter.ToObject(engine, args[0]), args[1]);
 			}
 		}
 
@@ -166,9 +181,9 @@ namespace Jurassic.Library
 			switch (args.Length)
 			{
 				case 0:
-					throw new JavaScriptException(engine, ErrorType.TypeError, "undefined cannot be converted to an object");
+					return Seal(Undefined.Value);
 				default:
-					return Seal(TypeConverter.ToObject(engine, args[0]));
+					return Seal(args[0]);
 			}
 		}
 
@@ -177,9 +192,9 @@ namespace Jurassic.Library
 			switch (args.Length)
 			{
 				case 0:
-					throw new JavaScriptException(engine, ErrorType.TypeError, "undefined cannot be converted to an object");
+					return Freeze(Undefined.Value);
 				default:
-					return Freeze(TypeConverter.ToObject(engine, args[0]));
+					return Freeze(args[0]);
 			}
 		}
 
@@ -188,9 +203,9 @@ namespace Jurassic.Library
 			switch (args.Length)
 			{
 				case 0:
-					throw new JavaScriptException(engine, ErrorType.TypeError, "undefined cannot be converted to an object");
+					return PreventExtensions(Undefined.Value);
 				default:
-					return PreventExtensions(TypeConverter.ToObject(engine, args[0]));
+					return PreventExtensions(args[0]);
 			}
 		}
 
@@ -248,6 +263,17 @@ namespace Jurassic.Library
 					return Is(args[0], Undefined.Value);
 				default:
 					return Is(args[0], args[1]);
+			}
+		}
+
+		private static object __STUB__FromEntries(ScriptEngine engine, object thisObj, object[] args)
+		{
+			switch (args.Length)
+			{
+				case 0:
+					throw new JavaScriptException(engine, ErrorType.TypeError, "undefined cannot be converted to an object");
+				default:
+					return FromEntries(TypeConverter.ToObject(engine, args[0]));
 			}
 		}
 	}

@@ -57,7 +57,7 @@ namespace Jurassic.Library
                 throw new InvalidOperationException("Expected values property.");
             properties.Add(new PropertyNameAndValue(engine.Symbol.Iterator, valuesProperty.Value, PropertyAttributes.NonEnumerable));
 
-            result.FastSetProperties(properties);
+            result.InitializeProperties(properties);
             return result;
         }
 
@@ -825,7 +825,7 @@ namespace Jurassic.Library
         [JSInternalFunction(Name = "sort", Flags = JSFunctionFlags.MutatesThisObject, Length = 1)]
         public TypedArrayInstance Sort(FunctionInstance comparisonFunction = null)
         {
-            Func<object, object, int> comparer;
+            Comparison<object> comparer;
             if (comparisonFunction == null)
             {
                 // Default comparer.
