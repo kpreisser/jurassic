@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Text;
+using Microsoft.CodeAnalysis;
 
 namespace Attribute_Code_Generation
 {
@@ -12,9 +13,13 @@ namespace Attribute_Code_Generation
     {
         static void Main(string[] args)
         {
-            foreach (var csFilePath in Directory.EnumerateFiles(@"..\..\..\..\Jurassic", "*.cs", SearchOption.AllDirectories))
+            IEnumerable<string> files = Directory.EnumerateFiles(@"..\..\..\..\Jurassic", "*.cs", SearchOption.AllDirectories);
+            files = files.Union(Directory.EnumerateFiles(@"..\..\..\..\Jurassic.Extensions", "*.cs", SearchOption.AllDirectories));
+            foreach (var csFilePath in files)
             {
                 var syntaxTree = CSharpSyntaxTree.ParseText(File.ReadAllText(csFilePath));
+                var classCollector = new ClassCollector();
+                classCollector.Visit(syntaxTree.GetRoot());
 
                 // Construct the output file.
                 var output = new StringBuilder();
@@ -24,14 +29,11 @@ namespace Attribute_Code_Generation
                 output.AppendLine();
                 output.AppendLine("using System.Collections.Generic;");
                 output.AppendLine("using Jurassic;");
-                output.AppendLine();
-                output.AppendLine("namespace Jurassic.Library");
-                output.AppendLine("{");
+                if (classCollector.Classes.Any(classSyntax => ((NamespaceDeclarationSyntax)classSyntax.Parent).Name.ToString() != "Jurassic.Library"))
+                    output.AppendLine("using Jurassic.Library;");
                 output.AppendLine();
 
                 bool outputFile = false;
-                var classCollector = new ClassCollector();
-                classCollector.Visit(syntaxTree.GetRoot());
                 foreach (var classSyntax in classCollector.Classes)
                 {
                     // Find all the methods with [JSInternalFunction], [JSCallFunction], [JSConstructorFunction], [JSProperty] or [JSField].
@@ -48,6 +50,10 @@ namespace Attribute_Code_Generation
 
                     outputFile = true;
                     var methodGroups = JSMethodGroup.FromMethods(memberCollector.JSInternalFunctionMethods);
+
+                    output.AppendLine($"namespace {((NamespaceDeclarationSyntax)classSyntax.Parent).Name}");
+                    output.AppendLine("{");
+                    output.AppendLine();
 
                     output.AppendLine($"\t{classSyntax.Modifiers} class {classSyntax.Identifier}");
                     output.AppendLine("\t{");
@@ -74,14 +80,14 @@ namespace Attribute_Code_Generation
                             if (property.SetterStubName == null)
                             {
                                 output.AppendLine($"\t\t\t\tnew PropertyNameAndValue({property.PropertyKey}, new PropertyDescriptor(" +
-                                    $"new ClrStubFunction(engine.FunctionInstancePrototype, \"get {property.FunctionName}\", 0, {property.GetterStubName}), " +
+                                    $"new ClrStubFunction(engine, \"get {property.FunctionName}\", 0, {property.GetterStubName}), " +
                                     $"null, {property.JSPropertyAttributes})),");
                             }
                             else
                             {
                                 output.AppendLine($"\t\t\t\tnew PropertyNameAndValue({property.PropertyKey}, new PropertyDescriptor(" +
-                                    $"new ClrStubFunction(engine.FunctionInstancePrototype, \"get {property.FunctionName}\", 0, {property.GetterStubName}), " +
-                                    $"new ClrStubFunction(engine.FunctionInstancePrototype, \"set {property.FunctionName}\", 0, {property.GetterStubName}), " +
+                                    $"new ClrStubFunction(engine, \"get {property.FunctionName}\", 0, {property.GetterStubName}), " +
+                                    $"new ClrStubFunction(engine, \"set {property.FunctionName}\", 0, {property.GetterStubName}), " +
                                     $"{property.JSPropertyAttributes})),");
                             }
                         }
@@ -128,10 +134,9 @@ namespace Attribute_Code_Generation
                     }
 
                     output.AppendLine("\t}");
+                    output.AppendLine();
+                    output.AppendLine("}");
                 }
-
-                output.AppendLine();
-                output.AppendLine("}");
 
                 if (outputFile)
                 {
@@ -245,7 +250,7 @@ namespace Attribute_Code_Generation
             {
                 MethodName = methodSyntax.Identifier.ToString();
                 ReturnType = methodSyntax.ReturnType.ToString();
-                IsStatic = methodSyntax.Modifiers.Any(m => m.ToString() == "static");
+                IsStatic = methodSyntax.Modifiers.Any(m => m.Kind() == SyntaxKind.StaticKeyword);
 
                 int parameterSkipCount = 0;
                 var jsAttribute = methodSyntax.AttributeLists.SelectMany(al => al.Attributes).Single(att =>
@@ -395,7 +400,7 @@ namespace Attribute_Code_Generation
             {
                 PropertyName = propertySyntax.Identifier.ToString();
                 ReturnType = propertySyntax.Type.ToString();
-                if (propertySyntax.Modifiers.Any(m => m.ToString() == "static"))
+                if (propertySyntax.Modifiers.Any(m => m.Kind() == SyntaxKind.StaticKeyword))
                     throw new NotImplementedException("Static properties are not supported.");
 
                 var jsAttribute = propertySyntax.AttributeLists.SelectMany(al => al.Attributes).Single(att =>
@@ -441,7 +446,8 @@ namespace Attribute_Code_Generation
 
                 // Determine the stub names.
                 GetterStubName = "__GETTER__" + PropertyName;
-                if (propertySyntax.AccessorList.Accessors.Any(a => a.Keyword.ToString() == "set"))
+                if (propertySyntax.AccessorList.Accessors.Any(a => a.Kind() == SyntaxKind.SetAccessorDeclaration &&
+                    !a.Modifiers.Any(m => m.Kind() == SyntaxKind.PrivateKeyword)))
                     SetterStubName = "__SETTER__" + PropertyName;
             }
 

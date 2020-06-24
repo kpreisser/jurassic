@@ -21,7 +21,7 @@ namespace Jurassic.Library
             // Initialize the constructor properties.
             var properties = GetDeclarativeProperties(Engine);
             InitializeConstructorProperties(properties, "Set", 0, SetInstance.CreatePrototype(Engine, this));
-            FastSetProperties(properties);
+            InitializeProperties(properties);
         }
 
 
@@ -68,19 +68,17 @@ namespace Jurassic.Library
             // If iterable is not null or undefined, then iterate through the values and add them to the set.
             if (iterable != Undefined.Value && iterable != Null.Value)
             {
-                var iterator = TypeUtilities.GetIterator(Engine, TypeConverter.ToObject(Engine, iterable));
-                if (iterator != null)
-                {
-                    // Get a reference to the add function.
-                    var addFunc = result["add"] as FunctionInstance;
-                    if (addFunc == null)
-                        throw new JavaScriptException(Engine, ErrorType.TypeError, "Missing 'add' function.");
+                var iterator = TypeUtilities.RequireIterator(Engine, iterable);
 
-                    // Call the add function for each value.
-                    foreach (var value in TypeUtilities.Iterate(Engine, iterator))
-                    {
-                        addFunc.Call(result, value);
-                    }
+                // Get a reference to the add function.
+                var addFunc = result["add"] as FunctionInstance;
+                if (addFunc == null)
+                    throw new JavaScriptException(Engine, ErrorType.TypeError, "Missing 'add' function.");
+
+                // Call the add function for each value.
+                foreach (var value in TypeUtilities.Iterate(Engine, iterator))
+                {
+                    addFunc.Call(result, value);
                 }
             }
 

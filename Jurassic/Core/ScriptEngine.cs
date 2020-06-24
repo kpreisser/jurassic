@@ -180,8 +180,9 @@ namespace Jurassic
             globalProperties.Add(new PropertyNameAndValue("Uint32Array", this.uint32ArrayConstructor, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("Float32Array", this.float32ArrayConstructor, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("Float64Array", this.float64ArrayConstructor, PropertyAttributes.NonEnumerable));
-
-            this.globalObject.FastSetProperties(globalProperties);
+            globalProperties.Add(new PropertyNameAndValue("parseFloat", numberConstructor["parseFloat"], PropertyAttributes.NonEnumerable));
+            globalProperties.Add(new PropertyNameAndValue("parseInt", numberConstructor["parseInt"], PropertyAttributes.NonEnumerable));
+            this.globalObject.InitializeProperties(globalProperties);
         }
 
         /// <summary>
@@ -346,7 +347,7 @@ namespace Jurassic
                 if (this.baseIteratorPrototype == null)
                 {
                     var result = Object.Construct();
-                    result.FastSetProperties(new List<PropertyNameAndValue>(1)
+                    result.InitializeProperties(new List<PropertyNameAndValue>(1)
                     {
                         new PropertyNameAndValue(Symbol.Iterator, new ClrStubFunction(FunctionInstancePrototype, "[Symbol.iterator]", 0,
                             (engine, thisObj, args) => thisObj), PropertyAttributes.NonEnumerable),
@@ -796,33 +797,41 @@ namespace Jurassic
 
             try
             {
-                // Parse
-                this.ParsingStarted?.Invoke(this, EventArgs.Empty);
-                methodGen.Parse();
+                try
+                {
+                    // Parse
+                    this.ParsingStarted?.Invoke(this, EventArgs.Empty);
+                    methodGen.Parse();
 
-                // Optimize
-                this.OptimizationStarted?.Invoke(this, EventArgs.Empty);
-                methodGen.Optimize();
+                    // Optimize
+                    this.OptimizationStarted?.Invoke(this, EventArgs.Empty);
+                    methodGen.Optimize();
 
-                // Generate code
-                this.CodeGenerationStarted?.Invoke(this, EventArgs.Empty);
-                methodGen.GenerateCode();
-                VerifyGeneratedCode();
+                    // Generate code
+                    this.CodeGenerationStarted?.Invoke(this, EventArgs.Empty);
+                    methodGen.GenerateCode();
+                    VerifyGeneratedCode();
+                }
+                catch (SyntaxErrorException ex)
+                {
+                    throw new JavaScriptException(this, ErrorType.SyntaxError, ex.Message, ex.LineNumber, ex.SourcePath);
+                }
+
+                // Execute
+                this.ExecutionStarted?.Invoke(this, EventArgs.Empty);
+                var result = methodGen.Execute(this);
+
+                // Execute any pending callbacks.
+                ExecutePostExecuteSteps();
+
+                // Normalize the result (convert null to Undefined, double to int, etc).
+                return TypeUtilities.NormalizeValue(result);
             }
-            catch (SyntaxErrorException ex)
+            finally
             {
-                throw new JavaScriptException(this, ErrorType.SyntaxError, ex.Message, ex.LineNumber, ex.SourcePath);
+                // Ensure the list of post-execute steps is cleared if there is an exception.
+                ClearPostExecuteSteps();
             }
-
-            // Execute
-            this.ExecutionStarted?.Invoke(this, EventArgs.Empty);
-            var result = methodGen.Execute(this);
-
-            // Execute any pending callbacks.
-            ExecutePendingCallbacks();
-
-            // Normalize the result (convert null to Undefined, double to int, etc).
-            return TypeUtilities.NormalizeValue(result);
         }
 
         /// <summary>
@@ -846,11 +855,19 @@ namespace Jurassic
             // Special case for executing pending callbacks only.
             if (string.IsNullOrEmpty(code))
             {
-                ParsingStarted?.Invoke(this, EventArgs.Empty);
-                OptimizationStarted?.Invoke(this, EventArgs.Empty);
-                CodeGenerationStarted?.Invoke(this, EventArgs.Empty);
-                ExecutionStarted?.Invoke(this, EventArgs.Empty);
-                ExecutePendingCallbacks();
+                try
+                {
+                    ParsingStarted?.Invoke(this, EventArgs.Empty);
+                    OptimizationStarted?.Invoke(this, EventArgs.Empty);
+                    CodeGenerationStarted?.Invoke(this, EventArgs.Empty);
+                    ExecutionStarted?.Invoke(this, EventArgs.Empty);
+                    ExecutePostExecuteSteps();
+                }
+                finally
+                {
+                    // Ensure the list of post-execute steps is cleared if there is an exception.
+                    ClearPostExecuteSteps();
+                }
                 return;
             }
 
@@ -1456,45 +1473,132 @@ namespace Jurassic
 
 
 
-        //     PENDING CALLBACKS
+        //     POST EXECUTE STEPS
+        //_________________________________________________________________________________________
+        //
+        // This is known as the job queue in the EMCAScript specification. It is used to run code
+        // after execution has finished. Queued actions are executed in FIFO order.
         //_________________________________________________________________________________________
 
-        private readonly Queue<Action> pendingCallbacks = new Queue<Action>();
-        private bool processingPendingCallbacks;
+        private readonly Queue<Action> postExecuteSteps = new Queue<Action>();
+        private bool currentlyExecutingPostExecuteSteps;
 
         /// <summary>
-        /// Appends a callback to the EventLoop that will be executed at the end of script execution.
+        /// Appends a callback that will be executed at the end of script execution.
         /// </summary>
         /// <param name="callback"> The callback function. </param>
-        internal void AddPendingCallback(Action callback)
+        internal void AddPostExecuteStep(Action callback)
         {
             if (callback == null)
                 throw new ArgumentNullException(nameof(callback));
-            pendingCallbacks.Enqueue(callback);
+            postExecuteSteps.Enqueue(callback);
         }
 
         /// <summary>
         /// This method is called at the end of script execution in order to execute pending
-        /// callbacks registered with <see cref="AddPendingCallback(Action)"/>.
+        /// callbacks registered with <see cref="AddPostExecuteStep(Action)"/>.
         /// </summary>
-        internal void ExecutePendingCallbacks()
+        internal void ExecutePostExecuteSteps()
         {
             // It's possible for pending callbacks to end up calling Execute(). If this is the
             // case, do nothing.
-            if (processingPendingCallbacks)
+            if (currentlyExecutingPostExecuteSteps)
                 return;
-            processingPendingCallbacks = true;
-            while (pendingCallbacks.Count > 0)
+            currentlyExecutingPostExecuteSteps = true;
+            try
             {
-                if (this.generateCancellationChecks)
+                while (postExecuteSteps.Count > 0)
                 {
-                    CheckCancellationRequest();
-                }
+                    if (this.generateCancellationChecks)
+                    {
+                        CheckCancellationRequest();
+                    }
 
-                var instance = pendingCallbacks.Dequeue();
-                instance();
+                    var instance = postExecuteSteps.Dequeue();
+                    instance();
+                }
             }
-            processingPendingCallbacks = false;
+            finally
+            {
+                currentlyExecutingPostExecuteSteps = false;
+            }
+        }
+
+        /// <summary>
+        /// Clears (and does not execute) all queued post-execute actions.
+        /// </summary>
+        internal void ClearPostExecuteSteps()
+        {
+            postExecuteSteps.Clear();
+        }
+
+
+
+        //     EVENT QUEUE
+        //_________________________________________________________________________________________
+        //
+        // This is used to schedule asynchronous actions so that they can be run synchronously.
+        // Can be used to implement:
+        // * Input event handlers (onclick, etc)
+        // * Scheduling functions like setTimeout and setInterval
+        // * Asynchronous promises (e.g. fetch)
+        //_________________________________________________________________________________________
+
+        private ConcurrentQueue<Action> eventQueue = new ConcurrentQueue<Action>();
+
+        /// <summary>
+        /// Adds a callback to the end of the event queue.
+        /// </summary>
+        /// <param name="action"> The action to enqueue. </param>
+        /// <remarks> This method is thread-safe. </remarks>
+        public void EnqueueEvent(Action action)
+        {
+            if (action == null)
+                throw new ArgumentNullException(nameof(action));
+            eventQueue.Enqueue(action);
+        }
+
+        /// <summary>
+        /// The number of queued actions in the event queue.
+        /// </summary>
+        public int EventQueueCount
+        {
+            get { return eventQueue.Count; }
+        }
+
+        /// <summary>
+        /// Removes the first available action from the event queue, and executes it.
+        /// </summary>
+        /// <returns> <c>true</c> if an event queue action was executed, <c>false</c> if the event
+        /// queue was empty. </returns>
+        /// <remarks>
+        /// This method is meant to be called in a loop, like this:
+        /// <code>
+        /// while (scriptEngine.ExecuteNextEventQueueAction()) { }
+        /// </code>
+        /// If an exception is thrown, you should assume that the action was successfully removed
+        /// from the queue. This means <see cref="ExecuteNextEventQueueAction()"/> can be called
+        /// again without triggering the same exception.
+        /// </remarks>
+        public bool ExecuteNextEventQueueAction()
+        {
+            // Remove the next action from the queue.
+            if (eventQueue.TryDequeue(out Action eventAction))
+            {
+                // Execute the action.
+                try
+                {
+                    eventAction();
+                    ExecutePostExecuteSteps();
+                }
+                finally
+                {
+                    // Ensure the list of post-execute steps is cleared if there is an exception.
+                    ClearPostExecuteSteps();
+                }
+                return true;
+            }
+            return false;
         }
 
 
