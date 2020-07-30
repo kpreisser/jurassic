@@ -37,13 +37,13 @@
                 name, PropertyAttributes.Configurable), true);
             this.DefineProperty("length", new PropertyDescriptor(
                 argumentsLength, PropertyAttributes.Configurable), true);
+            // The prototype property of built-in function is generally sealed
+            // (see e.g. ArrayBuffer.prototype), so we do the same.
             this.DefineProperty("prototype", new PropertyDescriptor(
-                instancePrototype, PropertyAttributes.Writable), true);
+                instancePrototype, PropertyAttributes.Sealed), true);
 
             instancePrototype.DefineProperty("constructor", new PropertyDescriptor(
                 this, PropertyAttributes.Configurable | PropertyAttributes.Writable), true);
-
-            PopulateFunctions();
         }
 
         /// <summary>
