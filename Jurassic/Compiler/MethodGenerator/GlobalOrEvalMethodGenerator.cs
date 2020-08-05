@@ -3,31 +3,33 @@
 namespace Jurassic.Compiler
 {
     /// <summary>
-    /// Represents the information needed to compile eval script into a method.
+    /// Represents the information needed to compile global or eval script into a method.
     /// </summary>
-    internal class EvalMethodGenerator : MethodGenerator
+    internal class GlobalOrEvalMethodGenerator : MethodGenerator
     {
         /// <summary>
         /// Creates a new EvalMethodGenerator instance.
         /// </summary>
-        /// <param name="parentScope"> The scope of the calling code. </param>
         /// <param name="source"> The script code to execute. </param>
         /// <param name="options"> Options that influence the compiler. </param>
-        /// <param name="thisObject"> The value of the "this" keyword in the calling code. </param>
-        public EvalMethodGenerator(Scope parentScope, ScriptSource source, CompilerOptions options, object thisObject)
-            : base(parentScope, source, options)
+        /// <param name="context"></param>
+        public GlobalOrEvalMethodGenerator(ScriptSource source, CompilerOptions options, GeneratorContext context)
+            : base(source, options)
         {
-            this.ThisObject = thisObject;
+            Context = context;
+        }
+
+        public enum GeneratorContext
+        {
+            Global,
+            GlobalEval,
+            Eval,
         }
 
         /// <summary>
-        /// Gets the value of the "this" keyword inside the eval statement.
+        /// 
         /// </summary>
-        public object ThisObject
-        {
-            get;
-            set;
-        }
+        public GeneratorContext Context { get; private set; }
 
         /// <summary>
         /// Gets a name for the generated method.
@@ -35,7 +37,7 @@ namespace Jurassic.Compiler
         /// <returns> A name for the generated method. </returns>
         protected override string GetMethodName()
         {
-            return "eval";
+            return Context == GeneratorContext.Global ? "global" : "eval";
         }
 
         /// <summary>
@@ -45,13 +47,28 @@ namespace Jurassic.Compiler
         {
             using (var lexer = new Lexer(this.Source))
             {
-                var parser = new Parser(lexer, this.InitialScope, this.Options, CodeContext.Eval);
+                CodeContext parserContext;
+                switch (Context)
+                {
+                    case GeneratorContext.Global:
+                        parserContext = CodeContext.Global;
+                        break;
+                    case GeneratorContext.GlobalEval:
+                        parserContext = CodeContext.GlobalEval;
+                        break;
+                    case GeneratorContext.Eval:
+                        parserContext = CodeContext.Eval;
+                        break;
+                    default:
+                        throw new NotImplementedException();
+                }
+
+                var parser = new Parser(lexer, this.Options, parserContext);
                 
                 this.AbstractSyntaxTree = parser.Parse();
-
                 this.StrictMode = parser.StrictMode;
-                this.InitialScope = parser.BaseScope;
                 this.MethodOptimizationHints = parser.MethodOptimizationHints;
+                this.BaseScope = parser.BaseScope;
             }
         }
 
@@ -69,39 +86,35 @@ namespace Jurassic.Compiler
                 generator.Call(ReflectionHelpers.ScriptEngine_CheckCancellationRequest);
             }
 
-            // Declare a variable to store the eval result.
-            optimizationInfo.EvalResult = generator.DeclareVariable(typeof(object));
-
-            if (this.StrictMode == true)
+            if (Context != GeneratorContext.Global)
             {
-                // Create a new scope.
-                this.InitialScope.GenerateScopeCreation(generator, optimizationInfo);
+                // Declare a variable to store the eval result.
+                optimizationInfo.EvalResult = generator.DeclareVariable(typeof(object));
             }
-
-            // Initialize any declarations.
-            this.InitialScope.GenerateDeclarations(generator, optimizationInfo);
 
             // Generate the main body of code.
             this.AbstractSyntaxTree.GenerateCode(generator, optimizationInfo);
 
-            // Make the return value from the method the eval result.
-            generator.LoadVariable(optimizationInfo.EvalResult);
-
-            // If the result is null, convert it to undefined.
-            var end = generator.CreateLabel();
-            generator.Duplicate();
-            generator.BranchIfNotNull(end);
-            generator.Pop();
-            EmitHelpers.EmitUndefined(generator);
-            generator.DefineLabelPosition(end);
+            if (Context != GeneratorContext.Global)
+            {
+                // Make the return value from the method the eval result.
+                generator.LoadVariable(optimizationInfo.EvalResult);
+            }
+            else
+            {
+                // Code in the global context always returns null.
+                generator.LoadNull();
+            }
         }
 
         /// <summary>
         /// Executes the script.
         /// </summary>
         /// <param name="engine"> The script engine to use to execute the script. </param>
+        /// <param name="parentScope"> The scope of the calling code. </param>
+        /// <param name="thisObject"> The value of the "this" keyword in the calling code. </param>
         /// <returns> The result of evaluating the script. </returns>
-        public object Execute(ScriptEngine engine)
+        public object Execute(ScriptEngine engine, RuntimeScope parentScope, object thisObject)
         {
             if (engine == null)
                 throw new ArgumentNullException("engine");
@@ -110,13 +123,13 @@ namespace Jurassic.Compiler
             if (this.GeneratedMethod == null)
                 GenerateCode();
 
-            // Strict mode creates a new scope so pass the parent scope in this case.
-            var scope = this.InitialScope;
-            if (this.StrictMode == true)
-                scope = scope.ParentScope;
+            // Package up all the runtime state.
+            var context = ExecutionContext.CreateGlobalOrEvalContext(engine, parentScope, thisObject);
 
             // Execute the compiled delegate and store the result.
-            object result = ((GlobalCodeDelegate)this.GeneratedMethod.GeneratedDelegate)(engine, scope, this.ThisObject);
+            object result = ((GlobalCodeDelegate)this.GeneratedMethod.GeneratedDelegate)(context);
+            if (result == null)
+                result = Undefined.Value;
 
             // Ensure the abstract syntax tree is kept alive until the eval code finishes running.
             GC.KeepAlive(this);
