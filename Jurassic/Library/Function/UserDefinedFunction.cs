@@ -17,7 +17,7 @@ namespace Jurassic.Library
     public class UserDefinedFunction : FunctionInstance
     {
         [ThreadStatic]
-        private static int currentRecursionDepth;
+        internal static int currentRecursionDepth;
 
         [NonSerialized]
         private GeneratedMethod generatedMethod;

@@ -1,4 +1,6 @@
-﻿namespace Jurassic.Library
+﻿using System;
+
+namespace Jurassic.Library
 {
     /// <summary>
     /// 
@@ -54,6 +56,10 @@
         /// <returns></returns>
         public override object CallLateBound(object thisObject, params object[] argumentValues)
         {
+            // Check the allowed recursion depth.
+            if (this.Engine.RecursionDepthLimit > 0 && UserDefinedFunction.currentRecursionDepth >= this.Engine.RecursionDepthLimit)
+                throw new StackOverflowException("The allowed recursion depth of the script engine has been exceeded.");
+
             if (this.Engine.CompatibilityMode == CompatibilityMode.ECMAScript3)
             {
                 // Convert null or undefined to the global object.
@@ -70,12 +76,14 @@
             // To fix this, we would need to somehow allow to modify the current stack frame.
             if (this.producesStackFrame)
                 this.Engine.PushStackFrame("native", DisplayName, 0, ScriptEngine.CallType.MethodCall);
+            UserDefinedFunction.currentRecursionDepth++;
             try
             {
                 return this.CallLateBoundCore(thisObject, argumentValues);
             }
             finally
             {
+                UserDefinedFunction.currentRecursionDepth--;
                 if (this.producesStackFrame)
                     this.Engine.PopStackFrame();
             }
