@@ -1615,7 +1615,7 @@ namespace Jurassic
         {
             if (Thread.VolatileRead(ref this.cancellationRequested) != 0)
             {
-                throw new ScriptCanceledException("Script execution has been canceled.");
+                throw new ScriptCanceledException("Script execution has been canceled.", this);
             }
         }
     }

@@ -11,9 +11,19 @@ namespace Jurassic
         /// 
         /// </summary>
         /// <param name="message"></param>
-        public ScriptCanceledException(string message) 
+        /// <param name="engine"></param>
+        internal ScriptCanceledException(string message, ScriptEngine engine)
             : base(message)
         {
+            this.Stack = engine.FormatStackTrace(null, null, null, null, 0);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public string Stack
+        {
+            get;
         }
     }
 }
