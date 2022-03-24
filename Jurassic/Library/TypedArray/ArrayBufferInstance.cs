@@ -36,7 +36,7 @@ namespace Jurassic.Library
         /// </summary>
         /// <param name="prototype"> The next object in the prototype chain. </param>
         /// <param name="buffer"> The buffer to use. </param>
-        private ArrayBufferInstance(ObjectInstance prototype, byte[] buffer)
+        public ArrayBufferInstance(ObjectInstance prototype, byte[] buffer)
             : base(prototype)
         {
             this.buffer = buffer;
@@ -65,7 +65,7 @@ namespace Jurassic.Library
         /// <summary>
         /// Gets the internal array for this ArrayBuffer.
         /// </summary>
-        internal byte[] Buffer
+        public byte[] Buffer
         {
             get { return this.buffer; }
         }
