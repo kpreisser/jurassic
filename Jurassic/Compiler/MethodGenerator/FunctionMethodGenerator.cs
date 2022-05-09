@@ -311,6 +311,12 @@ namespace Jurassic.Compiler
             return typeof(Library.FunctionDelegate);
         }
 
+        protected override void CallGeneratedMethodWithNullArguments()
+        {
+            var del = (Library.FunctionDelegate)this.GeneratedMethod.GeneratedDelegate;
+            del(null, null, null, null, null);
+        }
+
         /// <summary>
         /// Generates IL for the script.
         /// </summary>

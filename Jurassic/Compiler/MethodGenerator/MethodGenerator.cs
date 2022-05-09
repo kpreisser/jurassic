@@ -246,6 +246,12 @@ namespace Jurassic.Compiler
                 // Initialization code will appear to come from line 1.
                 optimizationInfo.MarkSequencePoint(generator, new SourceCodeSpan(1, 1, 1, 1));
 
+                // Generate the null check that returns immediately if scriptEngine is null,
+                // so that we can call it afterwards with null values, in order to have the
+                // JIT compiler generate the native code for it immediately, instead of when
+                // it is called the first time in the script code.
+                GenerateBeginOfMethodNullCheck(generator);
+
                 // Generate the IL.
                 GenerateCode(generator, optimizationInfo);
                 generator.Complete();
@@ -253,6 +259,10 @@ namespace Jurassic.Compiler
                 // Create a delegate from the method.
                 this.GeneratedMethod = new GeneratedMethod(dynamicMethod.CreateDelegate(GetDelegate()), optimizationInfo.NestedFunctions);
 
+                // Call the method with null arguments to have the JIT generate native code now
+                // instead of when calling the function for the first time (which may lead to
+                // delays in time-critical code).
+                CallGeneratedMethodWithNullArguments();
             }
             else
             {
@@ -357,6 +367,28 @@ namespace Jurassic.Compiler
         protected virtual Type GetDelegate()
         {
             return typeof(GlobalCodeDelegate);
+        }
+
+        protected virtual void CallGeneratedMethodWithNullArguments()
+        {
+            var del = (GlobalCodeDelegate)this.GeneratedMethod.GeneratedDelegate;
+            del(null, null, null);
+        }
+
+        /// <summary>
+        /// Generates an "if (scriptEngine is null) return null;", intended to be generated at
+        /// the start of the method. This allows to call the method in order to have the JIT
+        /// compiler generate the native code for this method.
+        /// </summary>
+        /// <param name="generator"></param>
+        private void GenerateBeginOfMethodNullCheck(ILGenerator generator)
+        {
+            EmitHelpers.LoadScriptEngine(generator);
+            var afterCheckLabel = generator.CreateLabel();
+            generator.BranchIfNotNull(afterCheckLabel);
+            generator.LoadNull();
+            generator.Return();
+            generator.DefineLabelPosition(afterCheckLabel);
         }
     }
 
