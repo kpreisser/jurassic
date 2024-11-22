@@ -68,6 +68,13 @@ namespace Jurassic.Library
         public abstract void Delete(int index);
 
         /// <summary>
+        /// Indicates whether the array index exists (has a value).
+        /// </summary>
+        /// <param name="index"> The index to check. </param>
+        /// <returns> <c>true</c> if the index exists, <c>false</c> otherwise. </returns>
+        public abstract bool HasProperty(int index);
+
+        /// <summary>
         /// Creates a new array of the same type as this one.
         /// </summary>
         /// <param name="values"> The values in the new array. </param>
@@ -119,13 +126,20 @@ namespace Jurassic.Library
                 int highIndex = Length - lowIndex - 1;
 
                 // Swap the two values.
-                T low = this[lowIndex];
-                T high = this[highIndex];
-                if (high != null)
+                bool lowExists = HasProperty(lowIndex);
+                T low = default;
+                if (lowExists)
+                    low = this[lowIndex];
+                bool highExists = HasProperty(highIndex);
+                T high = default;
+                if (highExists)
+                    high = this[highIndex];
+
+                if (highExists)
                     this[lowIndex] = high;
                 else
                     Delete(lowIndex);
-                if (low != null)
+                if (lowExists)
                     this[highIndex] = low;
                 else
                     Delete(highIndex);
@@ -182,7 +196,7 @@ namespace Jurassic.Library
             }
             catch (IndexOutOfRangeException)
             {
-                throw new JavaScriptException(Engine, ErrorType.TypeError, "Invalid comparison function");
+                throw new JavaScriptException(ErrorType.TypeError, "Invalid comparison function");
             }
 
             return WrappedInstance;
@@ -219,7 +233,7 @@ namespace Jurassic.Library
             }
             catch (ArgumentOutOfRangeException)
             {
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "The array is too long");
+                throw new JavaScriptException(ErrorType.RangeError, "The array is too long");
             }
 
             return result.ToString();
@@ -514,7 +528,7 @@ namespace Jurassic.Library
                     }
                 }
                 if (accumulatedValue == null)
-                    throw new JavaScriptException(Engine, ErrorType.TypeError, "Reduce of empty array with no initial value");
+                    throw new JavaScriptException(ErrorType.TypeError, "Reduce of empty array with no initial value");
             }
 
             // Scan from low to high.
@@ -563,7 +577,7 @@ namespace Jurassic.Library
                     }
                 }
                 if (accumulatedValue == null)
-                    throw new JavaScriptException(Engine, ErrorType.TypeError, "Reduce of empty array with no initial value");
+                    throw new JavaScriptException(ErrorType.TypeError, "Reduce of empty array with no initial value");
             }
 
             // Scan from high to to low.

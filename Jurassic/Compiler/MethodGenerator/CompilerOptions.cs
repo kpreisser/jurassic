@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Jurassic.Compiler
+﻿namespace Jurassic.Compiler
 {
     /// <summary>
     /// Represents a set of options that influence the compiler.
@@ -29,22 +27,6 @@ namespace Jurassic.Compiler
             get;
             set;
         }
-
-#if ENABLE_DEBUGGING
-
-        /// <summary>
-        /// Gets or sets a value which indicates whether debug information should be generated.  If
-        /// this is set to <c>true</c> performance and memory usage are negatively impacted.  The
-        /// default is <c>false</c>.
-        /// </summary>
-        public bool EnableDebugging { get; set; }
-
-#else
-
-        // Debugging is not supported.
-        internal bool EnableDebugging => false;
-
-#endif
 
         /// <summary>
         /// Gets or sets a value that indicates what compatibility mode to use.

@@ -1,7 +1,6 @@
 ﻿using Jurassic.Compiler;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Text;
 
 namespace Jurassic.Library
@@ -9,8 +8,6 @@ namespace Jurassic.Library
     /// <summary>
     /// Represents functions and properties within the global scope.
     /// </summary>
-    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
-    [DebuggerTypeProxy(typeof(ObjectInstanceDebugView))]
     public partial class GlobalObject : ObjectInstance
     {
 
@@ -158,7 +155,7 @@ namespace Jurassic.Library
         {
             if (TypeUtilities.IsString(code) == false)
                 return code;
-            return engine.Eval(TypeConverter.ToString(code), ObjectScope.CreateGlobalScope(engine.Global), engine.Global, false);
+            return engine.Eval(TypeConverter.ToString(code), RuntimeScope.CreateGlobalScope(engine), engine.Global, false);
         }
 
         /// <summary>
@@ -172,7 +169,7 @@ namespace Jurassic.Library
         /// strict mode code. </param>
         /// <returns> The value of the last statement that was executed, or <c>undefined</c> if
         /// there were no executed statements. </returns>
-        public static object Eval(ScriptEngine engine, object code, Scope scope, object thisObject, bool strictMode)
+        public static object Eval(ScriptEngine engine, object code, RuntimeScope scope, object thisObject, bool strictMode)
         {
             if (scope == null)
                 throw new ArgumentNullException(nameof(scope));
@@ -279,7 +276,7 @@ namespace Jurassic.Library
                     // Decode the %XX encoding.
                     int utf8Byte = ParseHexNumber(input, i + 1, 2);
                     if (utf8Byte < 0)
-                        throw new JavaScriptException(engine, ErrorType.URIError, "URI malformed");
+                        throw new JavaScriptException(ErrorType.URIError, "URI malformed");
                     i += 2;
 
                     // If the high bit is not set, then this is a single byte ASCII character.
@@ -302,7 +299,7 @@ namespace Jurassic.Library
 
                         // Check for an invalid UTF-8 start value.
                         if (utf8Byte == 0xc0 || utf8Byte == 0xc1)
-                            throw new JavaScriptException(engine, ErrorType.URIError, "URI malformed");
+                            throw new JavaScriptException(ErrorType.URIError, "URI malformed");
 
                         // Count the number of high bits set (this is the number of bytes required for the character).
                         int utf8ByteCount = 1;
@@ -314,7 +311,7 @@ namespace Jurassic.Library
                                 break;
                         }
                         if (utf8ByteCount < 2 || utf8ByteCount > 4)
-                            throw new JavaScriptException(engine, ErrorType.URIError, "URI malformed");
+                            throw new JavaScriptException(ErrorType.URIError, "URI malformed");
 
                         // Read the additional bytes.
                         byte[] utf8Bytes = new byte[utf8ByteCount];
@@ -323,16 +320,16 @@ namespace Jurassic.Library
                         {
                             // An additional escape sequence is expected.
                             if (i >= input.Length - 1 || input[++i] != '%')
-                                throw new JavaScriptException(engine, ErrorType.URIError, "URI malformed");
+                                throw new JavaScriptException(ErrorType.URIError, "URI malformed");
 
                             // Decode the %XX encoding.
                             utf8Byte = ParseHexNumber(input, i + 1, 2);
                             if (utf8Byte < 0)
-                                throw new JavaScriptException(engine, ErrorType.URIError, "URI malformed");
+                                throw new JavaScriptException(ErrorType.URIError, "URI malformed");
 
                             // Top two bits must be 10 (i.e. byte must be 10XXXXXX in binary).
                             if ((utf8Byte & 0xC0) != 0x80)
-                                throw new JavaScriptException(engine, ErrorType.URIError, "URI malformed");
+                                throw new JavaScriptException(ErrorType.URIError, "URI malformed");
 
                             // Store the byte.
                             utf8Bytes[j] = (byte)utf8Byte;
@@ -375,12 +372,12 @@ namespace Jurassic.Library
 
                     // Compute the code point.
                     if (c >= 0xDC00)
-                        throw new JavaScriptException(engine, ErrorType.URIError, "URI malformed");
+                        throw new JavaScriptException(ErrorType.URIError, "URI malformed");
                     if (i == input.Length)
-                        throw new JavaScriptException(engine, ErrorType.URIError, "URI malformed");
+                        throw new JavaScriptException(ErrorType.URIError, "URI malformed");
                     int c2 = input[i];
                     if (c2 < 0xDC00 || c2 >= 0xE000)
-                        throw new JavaScriptException(engine, ErrorType.URIError, "URI malformed");
+                        throw new JavaScriptException(ErrorType.URIError, "URI malformed");
                     c = (c - 0xD800) * 0x400 + (c2 - 0xDC00) + 0x10000;
                 }
 

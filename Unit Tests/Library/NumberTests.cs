@@ -283,6 +283,9 @@ namespace UnitTests
             Assert.AreEqual("-99999999999999", Evaluate("(-99999999999999).toString()"));
             Assert.AreEqual("-999999999999999", Evaluate("(-999999999999999).toString()"));
             Assert.AreEqual("-10000000000000000", Evaluate("(-9999999999999999).toString()"));
+            Assert.AreEqual("99999.9999999999", Evaluate("(99999.9999999999).toString()"));
+            Assert.AreEqual("99999.99999999999", Evaluate("(99999.99999999999).toString()"));
+            Assert.AreEqual("100000", Evaluate("(99999.999999999999).toString()"));
             Assert.AreEqual("9007199254740992", Evaluate("9007199254740993 .toString()"));
             Assert.AreEqual("-77", Evaluate("(-77).toString()"));
             Assert.AreEqual("77.1274", Evaluate("77.1274.toString()"));
@@ -589,19 +592,6 @@ namespace UnitTests
             // Large numbers.
             Assert.AreEqual(9214843084008499.0, Evaluate("Number.parseInt('9214843084008499')"));
             Assert.AreEqual(18014398509481993.0, Evaluate("Number.parseInt('18014398509481993')"));
-        }
-
-        [TestMethod]
-        public void clz()
-        {
-            Assert.AreEqual(32, Evaluate("0 .clz()"));
-            Assert.AreEqual(31, Evaluate("1 .clz()"));
-            Assert.AreEqual(28, Evaluate("12 .clz()"));
-            Assert.AreEqual(0, Evaluate("4294967275 .clz()"));
-            Assert.AreEqual(0, Evaluate("4294967295 .clz()"));
-            Assert.AreEqual(16, Evaluate("60000 .clz()"));
-            Assert.AreEqual(0, Evaluate("(-1).clz()"));
-            Assert.AreEqual(31, Evaluate("1.9.clz()"));
         }
     }
 }

@@ -96,16 +96,10 @@ namespace Jurassic.Library
             // The prototype must be null or an object. Note that null in .NET is actually undefined in JS!
             var prototypeObj = prototype as ObjectInstance;
             if (prototypeObj == null && prototype != Null.Value)
-                throw new JavaScriptException(obj.Engine, ErrorType.TypeError, "Object prototype may only be an Object or null.");
+                throw new JavaScriptException(ErrorType.TypeError, "Object prototype may only be an Object or null.");
 
             // Attempt to set the prototype.
-            if (!obj.SetPrototype(prototypeObj))
-            {
-                // Attempt to throw a reasonable error message based on what we know about how SetPrototype works.
-                if (!obj.IsExtensible)
-                    throw new JavaScriptException(obj.Engine, ErrorType.TypeError, "Object is not extensible.");
-                throw new JavaScriptException(obj.Engine, ErrorType.TypeError, "Prototype chain contains a cyclic reference.");
-            }
+            obj.SetPrototype(prototypeObj, throwOnError: true);
 
             return obj;
         }
@@ -135,10 +129,30 @@ namespace Jurassic.Library
         [JSInternalFunction(Name = "getOwnPropertyNames")]
         public static ArrayInstance GetOwnPropertyNames(ObjectInstance obj)
         {
+            // Indexes should be in numeric order.
+            var indexes = new List<uint>();
+            foreach (var key in obj.OwnKeys)
+                if (key is string keyStr)
+                {
+                    uint arrayIndex = ArrayInstance.ParseArrayIndex(keyStr);
+                    if (arrayIndex != uint.MaxValue)
+                        indexes.Add(arrayIndex);
+                }
+            indexes.Sort();
+
             var result = obj.Engine.Array.New();
-            foreach (var property in obj.Properties)
-                if (property.Key is string)
-                    result.Push(property.Key);
+            foreach (uint index in indexes)
+                result.Push(index.ToString());
+
+            // Strings, in insertion order.
+            foreach (var key in obj.OwnKeys)
+                if (key is string keyStr)
+                {
+                    uint arrayIndex = ArrayInstance.ParseArrayIndex(keyStr);
+                    if (arrayIndex == uint.MaxValue)
+                        result.Push(keyStr);
+                }
+                    
             return result;
         }
 
@@ -152,9 +166,9 @@ namespace Jurassic.Library
         public static ArrayInstance GetOwnPropertySymbols(ObjectInstance obj)
         {
             var result = obj.Engine.Array.New();
-            foreach (var property in obj.Properties)
-                if (property.Key is SymbolInstance)
-                    result.Push(property.Key);
+            foreach (var key in obj.OwnKeys)
+                if (key is Symbol)
+                    result.Push(key);
             return result;
         }
 
@@ -170,7 +184,7 @@ namespace Jurassic.Library
         public static ObjectInstance Create(ScriptEngine engine, object prototype, ObjectInstance properties = null)
         {
             if ((prototype is ObjectInstance) == false && prototype != Null.Value)
-                throw new JavaScriptException(engine, ErrorType.TypeError, "object prototype must be an object or null");
+                throw new JavaScriptException(ErrorType.TypeError, "object prototype must be an object or null");
             ObjectInstance result;
             if (prototype == Null.Value)
                 result = ObjectInstance.CreateRootObject(engine);
@@ -199,9 +213,15 @@ namespace Jurassic.Library
                 var source = TypeConverter.ToObject(engine, rawSource);
 
                 // Copy the enumerable properties from the source object.
-                foreach (var property in source.Properties)
-                    if (property.IsEnumerable == true)
-                        target.SetPropertyValue(property.Key, property.Value, throwOnError: true);
+                foreach (var key in source.OwnKeys)
+                {
+                    var descriptor = source.GetOwnPropertyDescriptor(key);
+                    if (descriptor.IsEnumerable)
+                    {
+                        // Spec says call [[Get]] instead of using the value from the descriptor.
+                        target.SetPropertyValue(key, source[key], target, throwOnError: true);
+                    }
+                }
             }
             return target;
         }
@@ -219,8 +239,10 @@ namespace Jurassic.Library
         {
             key = TypeConverter.ToPropertyKey(key);
             var defaults = obj.GetOwnPropertyDescriptor(key);
+            if (!defaults.Exists)
+                defaults = PropertyDescriptor.Undefined;
             if (!(attributes is ObjectInstance))
-                throw new JavaScriptException(obj.Engine, ErrorType.TypeError, "Invalid descriptor for property '{propertyName}'.");
+                throw new JavaScriptException(ErrorType.TypeError, $"Invalid descriptor for property '{key}'.");
             var descriptor = PropertyDescriptor.FromObject((ObjectInstance)attributes, defaults);
             obj.DefineProperty(key, descriptor, true);
             return obj;
@@ -235,13 +257,20 @@ namespace Jurassic.Library
         [JSInternalFunction(Name = "defineProperties")]
         public static ObjectInstance DefineProperties(object obj, ObjectInstance properties)
         {
-            if (!(obj is ObjectInstance))
-                throw new JavaScriptException(properties.Engine, ErrorType.TypeError, "Object.defineProperties called on non-object.");
-            var obj2 = (ObjectInstance)obj;
-            foreach (var property in properties.Properties)
-                if (property.IsEnumerable == true)
-                    DefineProperty(obj2, property.Key, property.Value);
-            return obj2;
+            if (obj is ObjectInstance objectInstance)
+            {
+                foreach (var key in properties.OwnKeys)
+                {
+                    var descriptor = properties.GetOwnPropertyDescriptor(key);
+                    if (descriptor.IsEnumerable)
+                    {
+                        // Spec says call [[Get]] instead of just using the value from the descriptor.
+                        DefineProperty(objectInstance, key, properties[key]);
+                    }
+                }
+                return objectInstance;
+            }
+            throw new JavaScriptException(ErrorType.TypeError, "Object.defineProperties called on non-object.");
         }
 
         /// <summary>
@@ -254,15 +283,12 @@ namespace Jurassic.Library
         {
             if (obj is ObjectInstance objectInstance)
             {
-                var properties = new List<PropertyNameAndValue>();
-                foreach (var property in objectInstance.Properties)
-                    properties.Add(property);
-                foreach (var property in properties)
+                objectInstance.PreventExtensions(throwOnError: true);
+                foreach (var key in objectInstance.OwnKeys)
                 {
-                    objectInstance.FastSetProperty(property.Key, property.Value,
-                        property.Attributes & ~PropertyAttributes.Configurable, overwriteAttributes: true);
+                    var descriptor = objectInstance.GetOwnPropertyDescriptor(key);
+                    objectInstance.DefineProperty(key, new PropertyDescriptor(descriptor.Value, descriptor.Attributes & ~PropertyAttributes.Configurable), throwOnError: true);
                 }
-                objectInstance.IsExtensible = false;
             }
             return obj;
         }
@@ -277,15 +303,12 @@ namespace Jurassic.Library
         {
             if (obj is ObjectInstance objectInstance)
             {
-                var properties = new List<PropertyNameAndValue>();
-                foreach (var property in objectInstance.Properties)
-                    properties.Add(property);
-                foreach (var property in properties)
+                objectInstance.PreventExtensions(throwOnError: true);
+                foreach (var key in objectInstance.OwnKeys)
                 {
-                    objectInstance.FastSetProperty(property.Key, property.Value,
-                        property.Attributes & ~(PropertyAttributes.NonEnumerable), overwriteAttributes: true);
+                    var descriptor = objectInstance.GetOwnPropertyDescriptor(key);
+                    objectInstance.DefineProperty(key, new PropertyDescriptor(descriptor.Value, descriptor.Attributes & ~PropertyAttributes.NonEnumerable), throwOnError: true);
                 }
-                objectInstance.IsExtensible = false;
             }
             return obj;
         }
@@ -300,7 +323,7 @@ namespace Jurassic.Library
         {
             if (obj is ObjectInstance objectInstance)
             {
-                objectInstance.IsExtensible = false;
+                objectInstance.PreventExtensions(throwOnError: true);
             }
             return obj;
         }
@@ -312,12 +335,16 @@ namespace Jurassic.Library
         /// <returns> <c>true</c> if properties can be added or at least one property can be
         /// deleted; <c>false</c> otherwise. </returns>
         [JSInternalFunction(Name = "isSealed")]
-        public static bool IsSealed(ObjectInstance obj)
+        public static bool IsSealed(object obj)
         {
-            foreach (var property in obj.Properties)
-                if (property.IsConfigurable == true)
-                    return false;
-            return obj.IsExtensible == false;
+            if (obj is ObjectInstance objectInstance)
+            {
+                foreach (var property in objectInstance.Properties)
+                    if (property.IsConfigurable == true)
+                        return false;
+                return objectInstance.IsExtensible == false;
+            }
+            return true;
         }
 
         /// <summary>
@@ -328,12 +355,16 @@ namespace Jurassic.Library
         /// <returns> <c>true</c> if properties can be added or at least one property can be
         /// deleted or modified; <c>false</c> otherwise. </returns>
         [JSInternalFunction(Name = "isFrozen")]
-        public static bool IsFrozen(ObjectInstance obj)
+        public static bool IsFrozen(object obj)
         {
-            foreach (var property in obj.Properties)
-                if (property.IsConfigurable == true || property.IsWritable == true)
-                    return false;
-            return obj.IsExtensible == false;
+            if (obj is ObjectInstance objectInstance)
+            {
+                foreach (var property in objectInstance.Properties)
+                    if (property.IsConfigurable == true || property.IsWritable == true)
+                        return false;
+                return objectInstance.IsExtensible == false;
+            }
+            return true;
         }
 
         /// <summary>
@@ -342,9 +373,13 @@ namespace Jurassic.Library
         /// <param name="obj"> The object to check. </param>
         /// <returns> <c>true</c> if properties can be added to the object; <c>false</c> otherwise. </returns>
         [JSInternalFunction(Name = "isExtensible")]
-        public static new bool IsExtensible(ObjectInstance obj)
+        public static new bool IsExtensible(object obj)
         {
-            return obj.IsExtensible;
+            if (obj is ObjectInstance objectInstance)
+            {
+                return objectInstance.IsExtensible;
+            }
+            return false;
         }
 
         /// <summary>
@@ -356,9 +391,15 @@ namespace Jurassic.Library
         public static ArrayInstance Keys(ObjectInstance obj)
         {
             var result = obj.Engine.Array.New();
-            foreach (var property in obj.Properties)
-                if (property.IsEnumerable == true && property.Key is string)
-                    result.Push(property.Key);
+            foreach (var key in obj.OwnKeys)
+            {
+                if (key is string)
+                {
+                    var propertyDescriptor = obj.GetOwnPropertyDescriptor(key);
+                    if (propertyDescriptor.Exists && propertyDescriptor.IsEnumerable)
+                        result.Push(key);
+                }
+            }
             return result;
         }
 
@@ -390,13 +431,13 @@ namespace Jurassic.Library
                 if (entry is ObjectInstance entryObject)
                 {
                     var propertyKey = entryObject[0];
-                    if (!(propertyKey is string) && !(propertyKey is SymbolInstance))
+                    if (!(propertyKey is string) && !(propertyKey is Symbol))
                         propertyKey = TypeConverter.ToString(propertyKey);
                     var propertyValue = entryObject[1];
                     result[propertyKey] = propertyValue;
                 }
                 else
-                    throw new JavaScriptException(iterable.Engine, ErrorType.TypeError, $"Iterator value {TypeConverter.ToString(entry)} is not an entry object.");
+                    throw new JavaScriptException(ErrorType.TypeError, $"Iterator value {TypeConverter.ToString(entry)} is not an entry object.");
             }
             return result;
         }

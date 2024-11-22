@@ -35,7 +35,7 @@ namespace Jurassic.Library
         {
             this.FastSetProperty("name", "ThrowTypeError", PropertyAttributes.Configurable);
             this.FastSetProperty("length", 0, PropertyAttributes.Configurable);
-            this.IsExtensible = false;
+            this.PreventExtensions(throwOnError: false);    // Should never throw.
             this.message = message;
         }
 
@@ -51,7 +51,7 @@ namespace Jurassic.Library
         /// <returns> The value that was returned from the function. </returns>
         public override object CallLateBound(object thisObject, params object[] argumentValues)
         {
-            throw new JavaScriptException(this.Engine, ErrorType.TypeError, this.message);
+            throw new JavaScriptException(ErrorType.TypeError, this.message);
         }
     }
 }

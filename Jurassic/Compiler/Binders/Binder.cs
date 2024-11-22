@@ -18,7 +18,6 @@ namespace Jurassic.Compiler
     /// </summary>
     internal abstract class Binder
     {
-        [NonSerialized]
         private BinderDelegate[] delegateCache;
         private const int MaximumCachedParameterCount = 8;
 
@@ -122,7 +121,7 @@ namespace Jurassic.Compiler
 #if USE_DYNAMIC_IL_INFO
             generator = new DynamicILGenerator(dm);
 #else
-            generator = new ReflectionEmitILGenerator(dm.GetILGenerator(), emitDebugInfo: false);
+            generator = new ReflectionEmitILGenerator(dm, emitDebugInfo: false);
 #endif
 
             // Generate the body of the method.

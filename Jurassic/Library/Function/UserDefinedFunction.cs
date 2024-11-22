@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using Jurassic.Compiler;
 
@@ -8,22 +7,14 @@ namespace Jurassic.Library
 {
     /// <summary>
     /// Represents a JavaScript function implemented in javascript.
-        /// <summary>
-        /// Gets type, that will be displayed in debugger watch window.
-        /// </summary>
     /// </summary>
-    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
-    [DebuggerTypeProxy(typeof(UserDefinedFunctionDebugView))]
     public class UserDefinedFunction : FunctionInstance
     {
         [ThreadStatic]
         internal static int currentRecursionDepth;
 
-        [NonSerialized]
-        private GeneratedMethod generatedMethod;
-
-        [NonSerialized]
-        private FunctionDelegate body;
+        private readonly GeneratedMethod generatedMethod;
+        private readonly FunctionMethodGenerator.FunctionDelegate body;
 
 
 
@@ -49,13 +40,11 @@ namespace Jurassic.Library
                 throw new ArgumentNullException(nameof(bodyText));
 
             // Set up a new function scope.
-            this.Scope = DeclarativeScope.CreateFunctionScope(ObjectScope.CreateGlobalScope(this.Engine.Global), name, null);
+            this.ParentScope = RuntimeScope.CreateGlobalScope(Engine);
 
             // Compile the code.
-            var context = new FunctionMethodGenerator(this.Scope, name, argumentsText, bodyText, new CompilerOptions() {
-#if ENABLE_DEBUGGING
-               EnableDebugging = this.Engine.EnableDebugging,
-#endif
+            var context = new FunctionMethodGenerator(name, argumentsText, bodyText, new CompilerOptions()
+            {
                ForceStrictMode = this.Engine.ForceStrictMode,
                EnableILAnalysis = this.Engine.EnableILAnalysis,
                CompatibilityMode = this.Engine.CompatibilityMode
@@ -66,15 +55,14 @@ namespace Jurassic.Library
             }
             catch (SyntaxErrorException ex)
             {
-                throw new JavaScriptException(this.Engine, ErrorType.SyntaxError, ex.Message, ex.LineNumber, ex.SourcePath);
+                throw new JavaScriptException(ErrorType.SyntaxError, ex.Message, ex.LineNumber, ex.SourcePath);
             }
 
             this.ArgumentsText = argumentsText;
             this.ArgumentNames = context.Arguments.Select(a => a.Name).ToList();
             this.BodyText = bodyText;
             this.generatedMethod = context.GeneratedMethod;
-            this.body = (FunctionDelegate)this.generatedMethod.GeneratedDelegate;
-            this.ParentScope = ObjectScope.CreateGlobalScope(this.Engine.Global);
+            this.body = (FunctionMethodGenerator.FunctionDelegate)this.generatedMethod.GeneratedDelegate;
             this.StrictMode = context.StrictMode;
             InitProperties(name, context.Arguments.Count);
         }
@@ -90,7 +78,7 @@ namespace Jurassic.Library
         /// <param name="body"> A delegate which represents the body of the function. </param>
         /// <param name="strictMode"> <c>true</c> if the function body is strict mode; <c>false</c> otherwise. </param>
         /// <remarks> This is used by <c>arguments</c>. </remarks>
-        internal UserDefinedFunction(ObjectInstance prototype, string name, IList<string> argumentNames, Scope parentScope, string bodyText, FunctionDelegate body, bool strictMode)
+        internal UserDefinedFunction(ObjectInstance prototype, string name, IList<string> argumentNames, RuntimeScope parentScope, string bodyText, FunctionMethodGenerator.FunctionDelegate body, bool strictMode)
             : base(prototype)
         {
             this.ArgumentsText = string.Join(", ", argumentNames);
@@ -113,17 +101,19 @@ namespace Jurassic.Library
         /// <param name="bodyText"> The source code for the function body. </param>
         /// <param name="generatedMethod"> A delegate which represents the body of the function plus any dependencies. </param>
         /// <param name="strictMode"> <c>true</c> if the function body is strict mode; <c>false</c> otherwise. </param>
+        /// <param name="container"> A reference to the containing class prototype or object literal (or <c>null</c>). </param>
         /// <remarks> This is used by functions declared in JavaScript code (including getters and setters). </remarks>
-        public UserDefinedFunction(ObjectInstance prototype, string name, IList<string> argumentNames, Scope parentScope, string bodyText, GeneratedMethod generatedMethod, bool strictMode)
+        internal UserDefinedFunction(ObjectInstance prototype, string name, IList<string> argumentNames, RuntimeScope parentScope, string bodyText, GeneratedMethod generatedMethod, bool strictMode, ObjectInstance container)
             : base(prototype)
         {
             this.ArgumentsText = string.Join(", ", argumentNames);
             this.ArgumentNames = argumentNames;
             this.BodyText = bodyText;
             this.generatedMethod = generatedMethod;
-            this.body = (FunctionDelegate)this.generatedMethod.GeneratedDelegate;
+            this.body = (FunctionMethodGenerator.FunctionDelegate)this.generatedMethod.GeneratedDelegate;
             this.ParentScope = parentScope;
             this.StrictMode = strictMode;
+            this.Container = container;
             InitProperties(name, argumentNames.Count);
         }
 
@@ -188,7 +178,7 @@ namespace Jurassic.Library
         /// <summary>
         /// Gets the scope at the point the function was declared.
         /// </summary>
-        internal Scope ParentScope
+        internal RuntimeScope ParentScope
         {
             get;
             private set;
@@ -205,7 +195,7 @@ namespace Jurassic.Library
 
         /// <summary>
         /// Gets the body of the method in the form of disassembled IL code.  Will be <c>null</c>
-        /// unless ScriptEngine.EnableILAnalysis has been set to <c>true</c>.
+        /// unless <see cref="CompilerOptions.EnableILAnalysis"/> was set to <c>true</c>.
         /// </summary>
         public string DisassembledIL
         {
@@ -213,29 +203,26 @@ namespace Jurassic.Library
         }
 
         /// <summary>
-        /// The function scope. Internal just to be visible in debugger.
+        /// Gets a reference to the generated method. For internal use only.
         /// </summary>
-        internal DeclarativeScope Scope
+        internal GeneratedMethod GeneratedMethod
         {
-            get;
-            private set;
+            get { return generatedMethod; }
         }
 
         /// <summary>
-        /// Gets value, that will be displayed in debugger watch window.
+        /// Gets a reference to the generated method. For internal use only.
         /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayValue
+        internal FunctionMethodGenerator.FunctionDelegate Body
         {
-            get
-            {
-                string name = this.Name;
-                if (string.IsNullOrEmpty(name))
-                    name = "function";
-                string result = string.Format("{0}({1})", name, this.ArgumentsText);
-                return result;
-            }
+            get { return body; }
         }
+
+        /// <summary>
+        /// A reference to the containing class prototype or object literal (or <c>null</c>). Used
+        /// by the 'super' property accessor.
+        /// </summary>
+        internal ObjectInstance Container { get; private set; }
 
 
 
@@ -255,15 +242,48 @@ namespace Jurassic.Library
                 throw new StackOverflowException("The allowed recursion depth of the script engine has been exceeded.");
 
             currentRecursionDepth++;
-            try
-            {
+            try {
+                var context = ExecutionContext.CreateFunctionContext(
+                    engine: this.Engine,
+                    parentScope: this.ParentScope,
+                    thisValue: thisObject,
+                    executingFunction: this);
+
                 // Call the function.
-                return this.body(this.Engine, this.ParentScope, thisObject, this, argumentValues);
+                return this.body(context, argumentValues) ?? Undefined.Value;
             }
-            finally
-            {
+            finally {
                 currentRecursionDepth--;
             }
+        }
+
+        /// <summary>
+        /// Creates an object, using this function as the constructor.
+        /// </summary>
+        /// <param name="newTarget"> The value of 'new.target'. </param>
+        /// <param name="argumentValues"> An array of argument values. </param>
+        /// <returns> The object that was created. </returns>
+        public override ObjectInstance ConstructLateBound(FunctionInstance newTarget, params object[] argumentValues)
+        {
+            // Create a new object and set the prototype to the instance prototype of the function.
+            var newObject = ObjectInstance.CreateRawObject(newTarget.InstancePrototype);
+
+            // Run the function, with the new object as the "this" keyword.
+            var context = ExecutionContext.CreateConstructContext(
+                engine: this.Engine,
+                parentScope: this.ParentScope,
+                thisValue: newObject,
+                executingFunction: this,
+                newTarget: newTarget,
+                functionContainer: null);
+            var result = this.body(context, argumentValues);
+
+            // Return the result of the function if it is an object.
+            if (result is ObjectInstance)
+                return (ObjectInstance)result;
+
+            // Otherwise, return the new object.
+            return newObject;
         }
 
         /// <summary>

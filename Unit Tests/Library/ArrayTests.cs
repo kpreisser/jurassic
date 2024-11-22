@@ -258,7 +258,7 @@ namespace UnitTests
             Assert.AreEqual(Undefined.Value, x[49]);
             Assert.AreEqual(Undefined.Value, x[88]);
             Assert.AreEqual(12, x[89]);
-            Assert.AreEqual(null, x[90]);
+            Assert.AreEqual(Undefined.Value, x[90]);
 
             // concat is generic.
             Evaluate("var x = new Number(5);");
@@ -280,6 +280,13 @@ namespace UnitTests
             {
                 Evaluate("delete Array.prototype[1]");
             }
+
+            // Concat array-like objects.
+            Assert.AreEqual("1,2", Evaluate("[1, 2].concat({ [0]: 3, [1]: 4, [Symbol.isConcatSpreadable]: true }).toString()"));
+            Assert.AreEqual("1,2,3,4", Evaluate("[1, 2].concat({ [0]: 3, [1]: 4, length: 2, [Symbol.isConcatSpreadable]: true }).toString()"));
+            Assert.AreEqual("1,2,3,,4", Evaluate("[1, 2].concat({ [0]: 3, [2]: 4, length: 3, [Symbol.isConcatSpreadable]: true }).toString()"));
+            Assert.AreEqual("1,2,3", Evaluate("[1, 2].concat({ [0]: 3, [2]: 4, length: 1, [Symbol.isConcatSpreadable]: true }).toString()"));
+            Assert.AreEqual("1,2,[object Object]", Evaluate("[1, 2].concat({ [0]: 3, [1]: 4, length: 2, [Symbol.isConcatSpreadable]: false }).toString()"));
 
             // length
             Assert.AreEqual(1, Evaluate("Array.prototype.concat.length"));
@@ -569,6 +576,14 @@ namespace UnitTests
         [TestMethod]
         public void sort()
         {
+            Assert.AreEqual(true, Evaluate(@"
+                'use strict';
+                var success = false;
+                [2,3].sort(function (x, y) {
+                    success = this === undefined;
+                });
+                success"));
+
             // Build up a large array.
             var script = new StringBuilder("var array = [");
             foreach (string word in words)

@@ -1,20 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-
-namespace Jurassic.Library
+﻿namespace Jurassic.Library
 {
     /// <summary>
     /// Represents a JavaScript function.
     /// </summary>
-    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
-    [DebuggerTypeProxy(typeof(ObjectInstanceDebugView))]
     public abstract partial class FunctionInstance : ObjectInstance
     {
-        // Used to speed up access to the prototype property.
-        private PropertyReference instancePrototypeProperty = new PropertyReference("prototype");
-
-
         //     INITIALIZATION
         //_________________________________________________________________________________________
 
@@ -78,7 +68,7 @@ namespace Jurassic.Library
                 // See 13.2.2
 
                 // Retrieve the value of the prototype property.
-                ObjectInstance prototype = GetPropertyValue(instancePrototypeProperty) as ObjectInstance;
+                ObjectInstance prototype = GetPropertyValue("prototype") as ObjectInstance;
                 
                 // If the prototype property is not set to an object, use the Object prototype property instead.
                 if (prototype == null && this != this.Engine.Object)
@@ -97,23 +87,6 @@ namespace Jurassic.Library
         }
 
         /// <summary>
-        /// Gets the display name of the function.  This is equal to the displayName property, if
-        /// it exists, or the name property otherwise.
-        /// </summary>
-        public string DisplayName
-        {
-            get
-            {
-                if (this.HasProperty("displayName"))
-                    return TypeConverter.ToString(this["displayName"]);
-                var name = TypeConverter.ToString(this["name"]);
-                if (name == string.Empty)
-                    return "[Anonymous]";
-                return name;
-            }
-        }
-
-        /// <summary>
         /// Gets the number of arguments expected by the function.
         /// </summary>
         public int Length
@@ -122,39 +95,6 @@ namespace Jurassic.Library
             protected set { this.FastSetProperty("length", value); }
         }
 
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayValue
-        {
-            get
-            {
-                string name = this.Name;
-                if (string.IsNullOrEmpty(name))
-                    name = "function";
-                string result = string.Format("{0}()", name);
-                return result;
-            }
-        }
-
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window when this object is part of array, map, etc.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayShortValue
-        {
-            get { return this.DebuggerDisplayValue; }
-        }
-
-        /// <summary>
-        /// Gets type, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayType
-        {
-            get { return "Function"; }
-        }
 
 
         //     JAVASCRIPT INTERNAL FUNCTIONS
@@ -174,7 +114,7 @@ namespace Jurassic.Library
                 return false;
             object functionPrototype = this["prototype"];
             if ((functionPrototype is ObjectInstance) == false)
-                throw new JavaScriptException(this.Engine, ErrorType.TypeError, "Function has non-object prototype in instanceof check");
+                throw new JavaScriptException(ErrorType.TypeError, "Function has non-object prototype in instanceof check");
             var instancePrototype = ((ObjectInstance)instance).Prototype;
             while (instancePrototype != null)
             {
@@ -205,7 +145,7 @@ namespace Jurassic.Library
             this.Engine.PushStackFrame("native", function, 0, ScriptEngine.CallType.MethodCall);
             try
             {
-                return CallLateBound(thisObject, argumentValues);
+                return CallLateBound(thisObject ?? Undefined.Value, argumentValues);
             }
             finally
             {
@@ -236,24 +176,23 @@ namespace Jurassic.Library
         }
 
         /// <summary>
+        /// Indicates whether the 'new' operator can be used on this function.
+        /// Will be <c>false</c> for built-in functions like Math.max.
+        /// </summary>
+        public virtual bool IsConstructor
+        {
+            get { return true; }
+        }
+
+        /// <summary>
         /// Creates an object, using this function as the constructor.
         /// </summary>
+        /// <param name="newTarget"> The value of 'new.target'. </param>
         /// <param name="argumentValues"> An array of argument values. </param>
         /// <returns> The object that was created. </returns>
-        public virtual ObjectInstance ConstructLateBound(params object[] argumentValues)
+        public virtual ObjectInstance ConstructLateBound(FunctionInstance newTarget, params object[] argumentValues)
         {
-            // Create a new object and set the prototype to the instance prototype of the function.
-            var newObject = ObjectInstance.CreateRawObject(this.InstancePrototype);
-
-            // Run the function, with the new object as the "this" keyword.
-            var result = CallLateBound(newObject, argumentValues);
-
-            // Return the result of the function if it is an object.
-            if (result is ObjectInstance)
-                return (ObjectInstance)result;
-
-            // Otherwise, return the new object.
-            return newObject;
+            throw new JavaScriptException(ErrorType.TypeError, $"{Name} is not a constructor.");
         }
 
         /// <summary>
@@ -262,14 +201,15 @@ namespace Jurassic.Library
         /// <param name="path"> The path of the javascript source file that contains the caller. </param>
         /// <param name="function"> The name of the caller function. </param>
         /// <param name="line"> The line number of the statement that is calling this function. </param>
+        /// <param name="newTarget"> The value of 'new.target'. </param>
         /// <param name="argumentValues"> An array of argument values. </param>
         /// <returns> The object that was created. </returns>
-        public ObjectInstance ConstructWithStackTrace(string path, string function, int line, object[] argumentValues)
+        public ObjectInstance ConstructWithStackTrace(string path, string function, int line, FunctionInstance newTarget, object[] argumentValues)
         {
             this.Engine.PushStackFrame(path, function, line, ScriptEngine.CallType.NewOperator);
             try
             {
-                return ConstructLateBound(argumentValues);
+                return ConstructLateBound(newTarget, argumentValues);
             }
             finally
             {
@@ -298,14 +238,14 @@ namespace Jurassic.Library
             else
             {
                 if ((arguments is ObjectInstance) == false)
-                    throw new JavaScriptException(this.Engine, ErrorType.TypeError, "The second parameter of apply() must be an array or an array-like object.");
+                    throw new JavaScriptException(ErrorType.TypeError, "The second parameter of apply() must be an array or an array-like object.");
                 ObjectInstance argumentsObject = (ObjectInstance)arguments;
                 object arrayLengthObj = argumentsObject["length"];
                 if (arrayLengthObj == null || arrayLengthObj == Undefined.Value || arrayLengthObj == Null.Value)
-                    throw new JavaScriptException(this.Engine, ErrorType.TypeError, "The second parameter of apply() must be an array or an array-like object.");
+                    throw new JavaScriptException(ErrorType.TypeError, "The second parameter of apply() must be an array or an array-like object.");
                 uint arrayLength = TypeConverter.ToUint32(arrayLengthObj);
                 if (arrayLength != TypeConverter.ToNumber(arrayLengthObj))
-                    throw new JavaScriptException(this.Engine, ErrorType.TypeError, "The second parameter of apply() must be an array or an array-like object.");
+                    throw new JavaScriptException(ErrorType.TypeError, "The second parameter of apply() must be an array or an array-like object.");
                 argumentsArray = new object[arrayLength];
                 for (uint i = 0; i < arrayLength; i++)
                     argumentsArray[i] = argumentsObject[i];

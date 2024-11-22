@@ -71,7 +71,7 @@ namespace UnitTests
             Assert.AreEqual(1, Evaluate("Object.getPrototypeOf.length"));
 
             // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.getPrototypeOf()"));
+            Assert.AreEqual("TypeError: undefined cannot be converted to an object", EvaluateExceptionMessage("Object.getPrototypeOf()"));
         }
 
         [TestMethod]
@@ -131,6 +131,9 @@ namespace UnitTests
             Assert.AreEqual(false, Evaluate("descriptor.hasOwnProperty('get')"));
             Assert.AreEqual(false, Evaluate("descriptor.hasOwnProperty('set')"));
 
+            // The first parameter doesn't have to be an object.
+            Assert.AreEqual(@"{""value"":""f"",""writable"":false,""enumerable"":true,""configurable"":false}",
+                Evaluate("JSON.stringify(Object.getOwnPropertyDescriptor('foo', 0))"));
             Assert.AreEqual(Undefined.Value, Evaluate("Object.getOwnPropertyDescriptor(true, 'toString')"));
             Assert.AreEqual(Undefined.Value, Evaluate("Object.getOwnPropertyDescriptor(5, 'toString')"));
             Assert.AreEqual(Undefined.Value, Evaluate("Object.getOwnPropertyDescriptor('test', 'toString')"));
@@ -148,7 +151,7 @@ namespace UnitTests
             Assert.AreEqual(2, Evaluate("Object.getOwnPropertyDescriptor.length"));
 
             // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.getOwnPropertyDescriptor()"));
+            Assert.AreEqual("TypeError: undefined cannot be converted to an object", EvaluateExceptionMessage("Object.getOwnPropertyDescriptor()"));
         }
 
         [TestMethod]
@@ -164,11 +167,25 @@ namespace UnitTests
             // Symbols are ignored.
             Assert.AreEqual("a", Evaluate("var x = {a: 5}; x[Symbol('test')] = 6; Object.getOwnPropertyNames(x).toString()"));
 
+            // Check the ordering.
+            Assert.AreEqual("012349 DB-1AEFGHIJKLMNOPQRSTUVWXYZC", Evaluate(@"
+                var obj = { 2: true, 0: true, 1: true, ' ': true, 9: true, D: true, B: true, '-1': true };
+                obj.A = true;
+                obj[3] = true;
+                'EFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(function(key) {
+	                obj[key] = true;
+                });
+                Object.defineProperty(obj, 'C', { value: true, enumerable: true });
+                Object.defineProperty(obj, '4', { value: true, enumerable: true });
+                delete obj[2];
+                obj[2] = true;
+                Object.getOwnPropertyNames(obj).join('')"));
+
             // length
             Assert.AreEqual(1, Evaluate("Object.getOwnPropertyNames.length"));
 
             // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.getOwnPropertyNames()"));
+            Assert.AreEqual("TypeError: undefined cannot be converted to an object", EvaluateExceptionMessage("Object.getOwnPropertyNames()"));
         }
 
         [TestMethod]
@@ -187,11 +204,11 @@ namespace UnitTests
             Assert.AreEqual(2, Evaluate("Object.create.length"));
 
             // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.create()"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.create(undefined)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.create(true)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.create(5)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.create('test')"));
+            Assert.AreEqual("TypeError: object prototype must be an object or null", EvaluateExceptionMessage("Object.create()"));
+            Assert.AreEqual("TypeError: object prototype must be an object or null", EvaluateExceptionMessage("Object.create(undefined)"));
+            Assert.AreEqual("TypeError: object prototype must be an object or null", EvaluateExceptionMessage("Object.create(true)"));
+            Assert.AreEqual("TypeError: object prototype must be an object or null", EvaluateExceptionMessage("Object.create(5)"));
+            Assert.AreEqual("TypeError: object prototype must be an object or null", EvaluateExceptionMessage("Object.create('test')"));
         }
 
         [TestMethod]
@@ -219,7 +236,7 @@ namespace UnitTests
             Assert.AreEqual(true, Evaluate("var x = {}; Object.defineProperty(x, 'a', {value: 7, enumerable: true, writable: false, configurable: true}) === x"));
             Assert.AreEqual(8, Evaluate("Object.defineProperty(x, 'a', {value: 8, enumerable: true, writable: false, configurable: true}); x.a"));
             Assert.AreEqual(9, Evaluate("Object.defineProperty(x, 'a', {value: 9, enumerable: true, writable: false, configurable: false}); x.a"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty(x, 'a', {value: 10, enumerable: true, writable: false, configurable: false}); x.a"));
+            Assert.AreEqual("TypeError: The property 'a' is non-configurable.", EvaluateExceptionMessage("Object.defineProperty(x, 'a', {value: 10, enumerable: true, writable: false, configurable: false}); x.a"));
 
             // Non-writable properties can be switched to accessor properties (as long as configurable = true).
             Assert.AreEqual(true, Evaluate("var x = {}; Object.defineProperty(x, 'a', {value: 7, enumerable: true, writable: false, configurable: true}) === x"));
@@ -327,51 +344,55 @@ namespace UnitTests
             Assert.AreEqual(true, Evaluate("Object.defineProperty(x, 'a', {get: undefined, set: undefined}) === x"));
             Assert.AreEqual(Undefined.Value, Evaluate("x.a"));
 
+            // Writable properties can be made non-writable.
+            Assert.AreEqual(10, Evaluate(@"
+                var x = Object.defineProperty({}, 'a', { configurable: false, writable: true, value: 5 });
+                Object.defineProperty(x, 'a', { configurable: false, writable: false, value: 10 }).a;"));
+
             // Non-extensible objects cannot have properties added.
             Assert.AreEqual(true, Evaluate("var x = {}; Object.preventExtensions(x) === x"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty(x, 'a', {value: 7, enumerable: true, writable: true, configurable: true})"));
+            Assert.AreEqual("TypeError: The property 'a' cannot be created as the object is not extensible.", EvaluateExceptionMessage("Object.defineProperty(x, 'a', {value: 7, enumerable: true, writable: true, configurable: true})"));
 
             // Non-configurable properties can only have the value changed.
             Assert.AreEqual(true, Evaluate("var x = {}; Object.defineProperty(x, 'a', {value: 7, enumerable: true, writable: true, configurable: false}) === x"));
             Assert.AreEqual(10, Evaluate("Object.defineProperty(x, 'a', {value: 10, enumerable: true, writable: true, configurable: false}); x.a"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty(x, 'a', {get: function() { return 7; }, enumerable: true, writable: true, configurable: false}); x.a"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty(x, 'a', {value: 10, enumerable: false, writable: true, configurable: false})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty(x, 'a', {value: 10, enumerable: true, writable: false, configurable: false})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty(x, 'a', {value: 10, enumerable: true, writable: true, configurable: true})"));
+            Assert.AreEqual("TypeError: Property descriptors with 'get' or 'set' defined must not have 'writable' set", EvaluateExceptionMessage("Object.defineProperty(x, 'a', {get: function() { return 7; }, enumerable: true, writable: true, configurable: false}); x.a"));
+            Assert.AreEqual("TypeError: The property 'a' is non-configurable.", EvaluateExceptionMessage("Object.defineProperty(x, 'a', {value: 10, enumerable: false, writable: true, configurable: false})"));
+            Assert.AreEqual("TypeError: The property 'a' is non-configurable.", EvaluateExceptionMessage("Object.defineProperty(x, 'a', {value: 10, enumerable: true, writable: true, configurable: true})"));
             Assert.AreEqual(true, Evaluate("var x = {}; var f = function() { return 1; }; Object.defineProperty(x, 'a', {get: f}); Object.defineProperty(x, 'a', {get: f}) === x"));
             Assert.AreEqual(true, Evaluate("var x = {}; Object.defineProperty(x, 'a', {get: function() { return 1; }}); Object.defineProperty(x, 'a', {set: undefined}) === x"));
 
             // Value is not allowed when specifying an accessor property.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var x = {}; Object.defineProperty(x, 'a', {get: function() { return 7 }, enumerable: true, configurable: true, value: 5})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var x = {}; Object.defineProperty(x, 'a', {get: function() { return 7 }, set: function() { }, enumerable: true, configurable: true, value: 5})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var x = {}; Object.defineProperty(x, 'a', {set: function() { }, enumerable: true, configurable: true, value: 5})"));
+            Assert.AreEqual("TypeError: Property descriptors cannot have both 'get' and 'value' set", EvaluateExceptionMessage("var x = {}; Object.defineProperty(x, 'a', {get: function() { return 7 }, enumerable: true, configurable: true, value: 5})"));
+            Assert.AreEqual("TypeError: Property descriptors cannot have both 'get' and 'value' set", EvaluateExceptionMessage("var x = {}; Object.defineProperty(x, 'a', {get: function() { return 7 }, set: function() { }, enumerable: true, configurable: true, value: 5})"));
+            Assert.AreEqual("TypeError: Property descriptors cannot have both 'set' and 'value' set", EvaluateExceptionMessage("var x = {}; Object.defineProperty(x, 'a', {set: function() { }, enumerable: true, configurable: true, value: 5})"));
 
             // Writable is not allowed when specifying an accessor property.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var x = {}; Object.defineProperty(x, 'a', {get: function() { return 7 }, enumerable: true, writable: false, configurable: true})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var x = {}; Object.defineProperty(x, 'a', {get: function() { return 7 }, set: function() { }, enumerable: true, writable: true, configurable: true})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var x = {}; Object.defineProperty(x, 'a', {set: function() { }, enumerable: true, writable: true, configurable: true})"));
+            Assert.AreEqual("TypeError: Property descriptors with 'get' or 'set' defined must not have 'writable' set", EvaluateExceptionMessage("var x = {}; Object.defineProperty(x, 'a', {get: function() { return 7 }, enumerable: true, writable: false, configurable: true})"));
+            Assert.AreEqual("TypeError: Property descriptors with 'get' or 'set' defined must not have 'writable' set", EvaluateExceptionMessage("var x = {}; Object.defineProperty(x, 'a', {get: function() { return 7 }, set: function() { }, enumerable: true, writable: true, configurable: true})"));
+            Assert.AreEqual("TypeError: Property descriptors with 'get' or 'set' defined must not have 'writable' set", EvaluateExceptionMessage("var x = {}; Object.defineProperty(x, 'a', {set: function() { }, enumerable: true, writable: true, configurable: true})"));
 
             // Get and set must be a function.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var x = {}; Object.defineProperty(x, 'a', {get: 5, enumerable: true, configurable: true})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var x = {}; Object.defineProperty(x, 'a', {get: 5, set: 5, enumerable: true, configurable: true})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var x = {}; Object.defineProperty(x, 'a', {set: 5, enumerable: true, configurable: true})"));
+            Assert.AreEqual("TypeError: Property descriptor 'get' must be a function", EvaluateExceptionMessage("var x = {}; Object.defineProperty(x, 'a', {get: 5, enumerable: true, configurable: true})"));
+            Assert.AreEqual("TypeError: Property descriptor 'get' must be a function", EvaluateExceptionMessage("var x = {}; Object.defineProperty(x, 'a', {get: 5, set: 5, enumerable: true, configurable: true})"));
+            Assert.AreEqual("TypeError: Property descriptor 'set' must be a function", EvaluateExceptionMessage("var x = {}; Object.defineProperty(x, 'a', {set: 5, enumerable: true, configurable: true})"));
 
             // length
             Assert.AreEqual(3, Evaluate("Object.defineProperty.length"));
 
             // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty()"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty({})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty(undefined, {})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty(null, {})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty(true, {})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty(5, {})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty('test', {})"));
+            Assert.AreEqual("TypeError: undefined cannot be converted to an object", EvaluateExceptionMessage("Object.defineProperty()"));
+            Assert.AreEqual("TypeError: Invalid descriptor for property 'undefined'.", EvaluateExceptionMessage("Object.defineProperty({})"));
+            Assert.AreEqual("TypeError: undefined cannot be converted to an object", EvaluateExceptionMessage("Object.defineProperty(undefined, {})"));
+            Assert.AreEqual("TypeError: null cannot be converted to an object", EvaluateExceptionMessage("Object.defineProperty(null, {})"));
+            Assert.AreEqual("TypeError: Invalid descriptor for property '[object Object]'.", EvaluateExceptionMessage("Object.defineProperty(true, {})"));
+            Assert.AreEqual("TypeError: Invalid descriptor for property '[object Object]'.", EvaluateExceptionMessage("Object.defineProperty(5, {})"));
+            Assert.AreEqual("TypeError: Invalid descriptor for property '[object Object]'.", EvaluateExceptionMessage("Object.defineProperty('test', {})"));
 
             // Property descriptors must be objects.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty({}, 'a', 5)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty({}, 'a', undefined)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperty({}, 'a', null)"));
+            Assert.AreEqual("TypeError: Invalid descriptor for property 'a'.", EvaluateExceptionMessage("Object.defineProperty({}, 'a', 5)"));
+            Assert.AreEqual("TypeError: Invalid descriptor for property 'a'.", EvaluateExceptionMessage("Object.defineProperty({}, 'a', undefined)"));
+            Assert.AreEqual("TypeError: Invalid descriptor for property 'a'.", EvaluateExceptionMessage("Object.defineProperty({}, 'a', null)"));
         }
 
         [TestMethod]
@@ -402,18 +423,18 @@ namespace UnitTests
             Assert.AreEqual(2, Evaluate("Object.defineProperties.length"));
 
             // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperties()"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperties({})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperties(undefined, {})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperties(null, {})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperties(true, {})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperties(5, {})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperties('test', {})"));
+            Assert.AreEqual("TypeError: undefined cannot be converted to an object", EvaluateExceptionMessage("Object.defineProperties()"));
+            Assert.AreEqual("TypeError: undefined cannot be converted to an object", EvaluateExceptionMessage("Object.defineProperties({})"));
+            Assert.AreEqual("TypeError: Object.defineProperties called on non-object.", EvaluateExceptionMessage("Object.defineProperties(undefined, {})"));
+            Assert.AreEqual("TypeError: Object.defineProperties called on non-object.", EvaluateExceptionMessage("Object.defineProperties(null, {})"));
+            Assert.AreEqual("TypeError: Object.defineProperties called on non-object.", EvaluateExceptionMessage("Object.defineProperties(true, {})"));
+            Assert.AreEqual("TypeError: Object.defineProperties called on non-object.", EvaluateExceptionMessage("Object.defineProperties(5, {})"));
+            Assert.AreEqual("TypeError: Object.defineProperties called on non-object.", EvaluateExceptionMessage("Object.defineProperties('test', {})"));
 
             // Property descriptors must be objects.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperties({}, { a: 1 })"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperties({}, { a: undefined })"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.defineProperties({}, { a: null })"));
+            Assert.AreEqual("TypeError: Invalid descriptor for property 'a'.", EvaluateExceptionMessage("Object.defineProperties({}, { a: 1 })"));
+            Assert.AreEqual("TypeError: Invalid descriptor for property 'a'.", EvaluateExceptionMessage("Object.defineProperties({}, { a: undefined })"));
+            Assert.AreEqual("TypeError: Invalid descriptor for property 'a'.", EvaluateExceptionMessage("Object.defineProperties({}, { a: null })"));
         }
 
         [TestMethod]
@@ -498,14 +519,12 @@ namespace UnitTests
             Assert.AreEqual(true, Evaluate("Object.isSealed(true)"));
             Assert.AreEqual(true, Evaluate("Object.isSealed(5)"));
             Assert.AreEqual(true, Evaluate("Object.isSealed('test')"));
+            Assert.AreEqual(true, Evaluate("Object.isSealed()"));
+            Assert.AreEqual(true, Evaluate("Object.isSealed(undefined)"));
+            Assert.AreEqual(true, Evaluate("Object.isSealed(null)"));
 
             // length
             Assert.AreEqual(1, Evaluate("Object.isSealed.length"));
-
-            // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isSealed()"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isSealed(undefined)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isSealed(null)"));
         }
 
         [TestMethod]
@@ -520,14 +539,12 @@ namespace UnitTests
             Assert.AreEqual(true, Evaluate("Object.isFrozen(true)"));
             Assert.AreEqual(true, Evaluate("Object.isFrozen(5)"));
             Assert.AreEqual(true, Evaluate("Object.isFrozen('test')"));
+            Assert.AreEqual(true, Evaluate("Object.isFrozen()"));
+            Assert.AreEqual(true, Evaluate("Object.isFrozen(undefined)"));
+            Assert.AreEqual(true, Evaluate("Object.isFrozen(null)"));
 
             // length
             Assert.AreEqual(1, Evaluate("Object.isFrozen.length"));
-
-            // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isFrozen()"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isFrozen(undefined)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isFrozen(null)"));
         }
 
         [TestMethod]
@@ -542,15 +559,12 @@ namespace UnitTests
             Assert.AreEqual(false, Evaluate("Object.isExtensible(true)"));
             Assert.AreEqual(false, Evaluate("Object.isExtensible(5)"));
             Assert.AreEqual(false, Evaluate("Object.isExtensible('test')"));
+            Assert.AreEqual(false, Evaluate("Object.isExtensible()"));
+            Assert.AreEqual(false, Evaluate("Object.isExtensible(undefined)"));
+            Assert.AreEqual(false, Evaluate("Object.isExtensible(null)"));
 
             // length
             Assert.AreEqual(1, Evaluate("Object.isExtensible.length"));
-
-            // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isExtensible()"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isExtensible(undefined)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isExtensible(null)"));
-            
         }
 
         [TestMethod]
@@ -568,9 +582,9 @@ namespace UnitTests
             Assert.AreEqual(1, Evaluate("Object.keys.length"));
 
             // Argument must be an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.keys()"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.keys(undefined)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.keys(null)"));
+            Assert.AreEqual("TypeError: undefined cannot be converted to an object", EvaluateExceptionMessage("Object.keys()"));
+            Assert.AreEqual("TypeError: undefined cannot be converted to an object", EvaluateExceptionMessage("Object.keys(undefined)"));
+            Assert.AreEqual("TypeError: null cannot be converted to an object", EvaluateExceptionMessage("Object.keys(null)"));
             Assert.AreEqual("", Evaluate("Object.keys(true).toString()"));
             Assert.AreEqual("", Evaluate("Object.keys(5).toString()"));
             Assert.AreEqual("0,1,2,3", Evaluate("Object.keys('test').toString()"));
@@ -605,12 +619,12 @@ namespace UnitTests
             Assert.AreEqual(1, Evaluate("Math.hasOwnProperty.length"));
 
             // "this" object must be convertible to object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Math.hasOwnProperty.call(undefined, 'max')"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Math.hasOwnProperty.call(null, 'max')"));
+            Assert.AreEqual("TypeError: The function 'hasOwnProperty' does not allow the value of 'this' to be undefined", EvaluateExceptionMessage("Math.hasOwnProperty.call(undefined, 'max')"));
+            Assert.AreEqual("TypeError: The function 'hasOwnProperty' does not allow the value of 'this' to be null", EvaluateExceptionMessage("Math.hasOwnProperty.call(null, 'max')"));
 
             // First parameter must be convertible to string.
-            Assert.AreEqual("Error", EvaluateExceptionType("Math.hasOwnProperty({toString: function() { throw new Error('test') }})"));
-            Assert.AreEqual("Error", EvaluateExceptionType("Math.hasOwnProperty.call(undefined, {toString: function() { throw new Error('test') }})"));
+            Assert.AreEqual("Error: test", EvaluateExceptionMessage("Math.hasOwnProperty({toString: function() { throw new Error('test') }})"));
+            Assert.AreEqual("Error: test", EvaluateExceptionMessage("Math.hasOwnProperty.call(undefined, {toString: function() { throw new Error('test') }})"));
         }
 
         [TestMethod]
@@ -631,8 +645,8 @@ namespace UnitTests
             Assert.AreEqual(1, Evaluate("Object.isPrototypeOf.length"));
 
             // Undefined and null are not allowed as the "this" object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isPrototypeOf.call(undefined, {})"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.isPrototypeOf.call(null, {})"));
+            Assert.AreEqual("TypeError: The function 'isPrototypeOf' does not allow the value of 'this' to be undefined", EvaluateExceptionMessage("Object.isPrototypeOf.call(undefined, {})"));
+            Assert.AreEqual("TypeError: The function 'isPrototypeOf' does not allow the value of 'this' to be null", EvaluateExceptionMessage("Object.isPrototypeOf.call(null, {})"));
         }
 
         [TestMethod]
@@ -655,12 +669,12 @@ namespace UnitTests
             Assert.AreEqual(1, Evaluate("Object.propertyIsEnumerable.length"));
 
             // "this" object must be convertible to object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.propertyIsEnumerable.call(undefined, 'max')"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.propertyIsEnumerable.call(null, 'max')"));
+            Assert.AreEqual("TypeError: The function 'propertyIsEnumerable' does not allow the value of 'this' to be undefined", EvaluateExceptionMessage("Object.propertyIsEnumerable.call(undefined, 'max')"));
+            Assert.AreEqual("TypeError: The function 'propertyIsEnumerable' does not allow the value of 'this' to be null", EvaluateExceptionMessage("Object.propertyIsEnumerable.call(null, 'max')"));
 
             // First parameter must be convertible to string.
-            Assert.AreEqual("Error", EvaluateExceptionType("Math.propertyIsEnumerable({toString: function() { throw new Error('test') }})"));
-            Assert.AreEqual("Error", EvaluateExceptionType("Math.propertyIsEnumerable.call(undefined, {toString: function() { throw new Error('test') }})"));
+            Assert.AreEqual("Error: test", EvaluateExceptionMessage("Math.propertyIsEnumerable({toString: function() { throw new Error('test') }})"));
+            Assert.AreEqual("Error: test", EvaluateExceptionMessage("Math.propertyIsEnumerable.call(undefined, {toString: function() { throw new Error('test') }})"));
         }
 
         [TestMethod]
@@ -674,14 +688,14 @@ namespace UnitTests
             Assert.AreEqual(0, Evaluate("Object.toLocaleString.length"));
 
             // Error is thrown if there is no implementation of toString.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var o = Object.create(null); o.toLocaleString = Object.toLocaleString; o.toLocaleString()"));
+            Assert.AreEqual("TypeError: Object <unknown> has no method 'toString'", EvaluateExceptionMessage("var o = Object.create(null); o.toLocaleString = Object.toLocaleString; o.toLocaleString()"));
 
             // Error in toString will result in error.
-            Assert.AreEqual("Error", EvaluateExceptionType("({ toString: function() { throw new Error('test') } }).toLocaleString()"));
+            Assert.AreEqual("Error: test", EvaluateExceptionMessage("({ toString: function() { throw new Error('test') } }).toLocaleString()"));
 
             // "this" must be convertible to an object.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.toLocaleString.call(undefined)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.toLocaleString.call(null)"));
+            Assert.AreEqual("TypeError: undefined cannot be converted to an object", EvaluateExceptionMessage("Object.toLocaleString.call(undefined)"));
+            Assert.AreEqual("TypeError: null cannot be converted to an object", EvaluateExceptionMessage("Object.toLocaleString.call(null)"));
         }
 
         [TestMethod]
@@ -694,7 +708,7 @@ namespace UnitTests
             Assert.AreEqual(0, Evaluate("Object.toString.length"));
 
             // Error in toString will result in error.
-            Assert.AreEqual("Error", EvaluateExceptionType("({ toString: function() { throw new Error('test') } }).toString()"));
+            Assert.AreEqual("Error: test", EvaluateExceptionMessage("({ toString: function() { throw new Error('test') } }).toString()"));
 
             // Addendum 7-1-10: null and undefined return their own strings.
             Assert.AreEqual("[object Undefined]", Evaluate("({}).toString.call(undefined)"));
@@ -737,6 +751,11 @@ namespace UnitTests
         [TestMethod]
         public void setPrototypeOf()
         {
+            // Returns the object that was modified.
+            Assert.AreEqual(true, Evaluate("var a = {}; Object.setPrototypeOf(a, Math) === a"));
+            Assert.AreEqual(true, Evaluate("var a = {}; Object.setPrototypeOf(a, null) === a"));
+
+            // Check the protototype was changed.
             Assert.AreEqual(true, Evaluate("var a = {}; Object.setPrototypeOf(a, Math); Object.getPrototypeOf(a) === Math"));
             Assert.AreEqual(true, Evaluate("var a = {}; Object.setPrototypeOf(a, null); Object.getPrototypeOf(a) === null"));
             Assert.AreEqual(5, Evaluate("var a = {}; Object.setPrototypeOf(a, Math); a.abs(-5)"));
@@ -745,21 +764,13 @@ namespace UnitTests
             Assert.AreEqual(2, Evaluate("Object.setPrototypeOf.length"));
 
             // Argument must be an object or null.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.setPrototypeOf({}, undefined)"));
+            Assert.AreEqual("TypeError: Object prototype may only be an Object or null.", EvaluateExceptionMessage("Object.setPrototypeOf({}, undefined)"));
 
             // Object must be extensible.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.setPrototypeOf(Object.preventExtensions({}), {})"));
+            Assert.AreEqual("TypeError: Object is not extensible.", EvaluateExceptionMessage("Object.setPrototypeOf(Object.preventExtensions({}), {})"));
 
             // No cyclic references.
-            Assert.AreEqual("TypeError", EvaluateExceptionType("var a = {}; Object.setPrototypeOf(a, a)"));
-        }
-
-        [TestMethod]
-        [Ignore]    // not supported yet.
-        public void __proto__()
-        {
-            Assert.AreEqual(true, Evaluate("var a = {}; a.__proto__ = Math; a.__proto__ === Math"));
-            Assert.AreEqual(true, Evaluate("var a = {}; a.__proto__ = Math; a.__proto__ === Object.getPrototypeOf(a)"));
+            Assert.AreEqual("TypeError: Prototype chain contains a cyclic reference.", EvaluateExceptionMessage("var a = {}; Object.setPrototypeOf(a, a)"));
         }
 
         [TestMethod]
@@ -777,8 +788,8 @@ namespace UnitTests
             Assert.AreEqual(2, Evaluate("Object.fromEntries([['a', 1], ['a', 2]]).a"));
 
             // Errors
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.fromEntries(5)"));
-            Assert.AreEqual("TypeError", EvaluateExceptionType("Object.fromEntries([1])"));
+            Assert.AreEqual("TypeError: 5 is not iterable.", EvaluateExceptionMessage("Object.fromEntries(5)"));
+            Assert.AreEqual("TypeError: Iterator value 1 is not an entry object.", EvaluateExceptionMessage("Object.fromEntries([1])"));
 
             // length
             Assert.AreEqual(1, Evaluate("Object.fromEntries.length"));

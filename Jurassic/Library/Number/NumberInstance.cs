@@ -1,6 +1,4 @@
-﻿using System;
-using System.Diagnostics;
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace Jurassic.Library
 {
@@ -11,14 +9,12 @@ namespace Jurassic.Library
     /// None of the methods of the Number prototype are generic; they should throw <c>TypeError</c>
     /// if the <c>this</c> value is not a Number object or a number primitive.
     /// </remarks>
-    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
-    [DebuggerTypeProxy(typeof(ObjectInstanceDebugView))]
     public partial class NumberInstance : ObjectInstance
     {
         /// <summary>
         /// The primitive value.
         /// </summary>
-        private double value;
+        private readonly double value;
 
 
         //     INITIALIZATION
@@ -62,36 +58,6 @@ namespace Jurassic.Library
             get { return this.value; }
         }
 
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayValue
-        {
-            get
-            {
-                return this.Value.ToString(CultureInfo.InvariantCulture);
-            }
-        }
-
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window when this object is part of array, map, etc.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayShortValue
-        {
-            get { return this.DebuggerDisplayValue; }
-        }
-
-        /// <summary>
-        /// Gets type, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayType
-        {
-            get { return "Number"; }
-        }
-
 
 
         //     JAVASCRIPT FUNCTIONS
@@ -118,7 +84,7 @@ namespace Jurassic.Library
 
             // Check the parameter is within range.
             if (fractionDigits2 < 0 || fractionDigits2 > 20)
-                throw new JavaScriptException(this.Engine, ErrorType.RangeError, "toExponential() argument must be between 0 and 20.");
+                throw new JavaScriptException(ErrorType.RangeError, "toExponential() argument must be between 0 and 20.");
 
             // NumberFormatter does the hard work.
             return NumberFormatter.ToString(this.value, 10, NumberFormatter.Style.Exponential, fractionDigits2);
@@ -139,7 +105,7 @@ namespace Jurassic.Library
         {
             // Check the parameter is within range.
             if (fractionDigits < 0 || fractionDigits > 20)
-                throw new JavaScriptException(this.Engine, ErrorType.RangeError, "toFixed() argument must be between 0 and 20.");
+                throw new JavaScriptException(ErrorType.RangeError, "toFixed() argument must be between 0 and 20.");
 
             // NumberFormatter does the hard work.
             return NumberFormatter.ToString(this.value, 10, NumberFormatter.Style.Fixed, fractionDigits);
@@ -182,7 +148,7 @@ namespace Jurassic.Library
 
             // Check the precision is in range.
             if (precision2 < 1 || precision2 > 21)
-                throw new JavaScriptException(this.Engine, ErrorType.RangeError, "toPrecision() argument must be between 0 and 21.");
+                throw new JavaScriptException(ErrorType.RangeError, "toPrecision() argument must be between 0 and 21.");
 
             // NumberFormatter does the hard work.
             return NumberFormatter.ToString(this.value, 10, NumberFormatter.Style.Precision, precision2);
@@ -198,7 +164,7 @@ namespace Jurassic.Library
         {
             // Check the parameter is in range.
             if (radix < 2 || radix > 36)
-                throw new JavaScriptException(this.Engine, ErrorType.RangeError, "The radix must be between 2 and 36, inclusive.");
+                throw new JavaScriptException(ErrorType.RangeError, "The radix must be between 2 and 36, inclusive.");
 
             // NumberFormatter does the hard work.
             return NumberFormatter.ToString(this.value, radix, NumberFormatter.Style.Regular);
@@ -212,41 +178,6 @@ namespace Jurassic.Library
         public new double ValueOf()
         {
             return this.value;
-        }
-        
-        /// <summary>
-        /// Calculates the number of leading zero bits in the integer representation of this
-        /// number.
-        /// </summary>
-        /// <returns> The number of leading zero bits in the integer representation of this number. </returns>
-        [JSInternalFunction(Name = "clz")]
-        public int Clz()
-        {
-            uint x = (uint)this.value;
-
-            // Propagate leftmost 1-bit to the right 
-            x = x | (x >> 1); 
-            x = x | (x >> 2); 
-            x = x | (x >> 4); 
-            x = x | (x >> 8); 
-            x = x | (x >> 16);
-
-            return sizeof(int) * 8 - CountOneBits(x);
-        }
-
-        /// <summary>
-        /// Counts the number of set bits in an integer.
-        /// </summary>
-        /// <param name="x"> The integer. </param>
-        /// <returns> The number of set bits in the integer. </returns>
-        private static int CountOneBits(uint x)
-        {
-            x -= ((x >> 1) & 0x55555555);
-            x = (((x >> 2) & 0x33333333) + (x & 0x33333333));
-            x = (((x >> 4) + x) & 0x0f0f0f0f);
-            x += (x >> 8);
-            x += (x >> 16);
-            return (int)(x & 0x0000003f);
         }
     }
 }

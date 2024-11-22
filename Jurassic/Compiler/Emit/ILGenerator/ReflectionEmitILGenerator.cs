@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using OpCodes = System.Reflection.Emit.OpCodes;
 
 namespace Jurassic.Compiler
@@ -8,25 +9,33 @@ namespace Jurassic.Compiler
     /// </summary>
     internal class ReflectionEmitILGenerator : ILGenerator
     {
+        private MethodInfo method;
         private System.Reflection.Emit.ILGenerator generator;
         private bool emitDebugInfo;
 
         /// <summary>
-        /// Creates a new ReflectionEmitILGenerator instance.
+        /// Creates a new ReflectionEmitILGenerator instance from a DynamicMethod.
         /// </summary>
-        /// <param name="generator"> The ILGenerator that is used to output the IL. </param>
+        /// <param name="dynamicMethod"> The DynamicMethod to emit IL for. </param>
         /// <param name="emitDebugInfo"> Indicates whether to emit debugging information, like symbol names. </param>
-        public ReflectionEmitILGenerator(System.Reflection.Emit.ILGenerator generator, bool emitDebugInfo)
+        public ReflectionEmitILGenerator(System.Reflection.Emit.DynamicMethod dynamicMethod, bool emitDebugInfo)
         {
-            if (generator == null)
-                throw new ArgumentNullException(nameof(generator));
-            this.generator = generator;
+            this.method = dynamicMethod ?? throw new ArgumentNullException(nameof(dynamicMethod));
+            this.generator = dynamicMethod.GetILGenerator();
             this.emitDebugInfo = emitDebugInfo;
+        }
+
+        /// <summary>
+        /// Gets a reference to the method that we are generating IL for.
+        /// </summary>
+        public override MethodInfo MethodInfo
+        {
+            get { return this.method; }
         }
 
 
 
-        //     BUFFER MANAGEMENT
+        //     LIFECYCLE MANAGEMENT
         //_________________________________________________________________________________________
 
         /// <summary>
@@ -283,10 +292,6 @@ namespace Jurassic.Compiler
         public override ILLocalVariable DeclareVariable(Type type, string name = null)
         {
             var localBuilder = this.generator.DeclareLocal(type);
-#if ENABLE_DEBUGGING
-            if (emitDebugInfo && name != null)
-                localBuilder.SetLocalSymInfo(name);
-#endif
             return new ReflectionEmitILLocalVariable(localBuilder, name);
         }
 
@@ -422,7 +427,7 @@ namespace Jurassic.Compiler
                         this.generator.Emit(OpCodes.Ldc_I4_8);
                         break;
                 }
-                
+
             }
             else if (value >= -128 && value < 128)
                 this.generator.Emit(OpCodes.Ldc_I4_S, (byte)value);
@@ -741,7 +746,7 @@ namespace Jurassic.Compiler
         /// Pops the constructor arguments off the stack and creates a new instance of the object.
         /// </summary>
         /// <param name="constructor"> The constructor that is used to initialize the object. </param>
-        public override void NewObject(System.Reflection.ConstructorInfo constructor)
+        public override void NewObject(ConstructorInfo constructor)
         {
             this.generator.Emit(OpCodes.Newobj, constructor);
         }
@@ -753,14 +758,9 @@ namespace Jurassic.Compiler
         /// callsite.
         /// </summary>
         /// <param name="method"> The method to call. </param>
-        public override void CallStatic(System.Reflection.MethodBase method)
+        public override void CallStatic(MethodInfo method)
         {
-            if (method is System.Reflection.ConstructorInfo)
-                this.generator.Emit(OpCodes.Call, (System.Reflection.ConstructorInfo)method);
-            else if (method is System.Reflection.MethodInfo)
-                this.generator.Emit(OpCodes.Call, (System.Reflection.MethodInfo)method);
-            else
-                throw new InvalidOperationException("Unsupported subtype of MethodBase.");
+            this.generator.Emit(OpCodes.Call, method);
         }
 
         /// <summary>
@@ -770,25 +770,18 @@ namespace Jurassic.Compiler
         /// </summary>
         /// <param name="method"> The method to call. </param>
         /// <exception cref="ArgumentException"> The method is static. </exception>
-        public override void CallVirtual(System.Reflection.MethodBase method)
+        public override void CallVirtual(MethodInfo method)
         {
             if (method == null)
                 throw new ArgumentNullException(nameof(method));
-            if (method.IsStatic == true)
-                throw new ArgumentException(nameof(method));
-            if (method is System.Reflection.ConstructorInfo)
-                this.generator.Emit(OpCodes.Callvirt, (System.Reflection.ConstructorInfo)method);
-            else if (method is System.Reflection.MethodInfo)
-                this.generator.Emit(OpCodes.Callvirt, (System.Reflection.MethodInfo)method);
-            else
-                throw new InvalidOperationException("Unsupported subtype of MethodBase.");
+            this.generator.Emit(OpCodes.Callvirt, method);
         }
 
         /// <summary>
         /// Pushes the value of the given field onto the stack.
         /// </summary>
         /// <param name="field"> The field whose value will be pushed. </param>
-        public override void LoadField(System.Reflection.FieldInfo field)
+        public override void LoadField(FieldInfo field)
         {
             if (field == null)
                 throw new ArgumentNullException(nameof(field));
@@ -802,7 +795,7 @@ namespace Jurassic.Compiler
         /// Pops a value off the stack and stores it in the given field.
         /// </summary>
         /// <param name="field"> The field to modify. </param>
-        public override void StoreField(System.Reflection.FieldInfo field)
+        public override void StoreField(FieldInfo field)
         {
             if (field == null)
                 throw new ArgumentNullException(nameof(field));
@@ -850,12 +843,12 @@ namespace Jurassic.Compiler
         /// stack.
         /// </summary>
         /// <param name="method"> The method to convert to a RuntimeMethodHandle. </param>
-        public override void LoadToken(System.Reflection.MethodBase method)
+        public override void LoadToken(MethodBase method)
         {
-            if (method is System.Reflection.ConstructorInfo)
-                this.generator.Emit(OpCodes.Ldtoken, (System.Reflection.ConstructorInfo)method);
-            else if (method is System.Reflection.MethodInfo)
-                this.generator.Emit(OpCodes.Ldtoken, (System.Reflection.MethodInfo)method);
+            if (method is ConstructorInfo)
+                this.generator.Emit(OpCodes.Ldtoken, (ConstructorInfo)method);
+            else if (method is MethodInfo)
+                this.generator.Emit(OpCodes.Ldtoken, (MethodInfo)method);
             else
                 throw new InvalidOperationException("Unsupported subtype of MethodBase.");
         }
@@ -864,7 +857,7 @@ namespace Jurassic.Compiler
         /// Pushes a RuntimeFieldHandle corresponding to the given field onto the evaluation stack.
         /// </summary>
         /// <param name="field"> The type to convert to a RuntimeFieldHandle. </param>
-        public override void LoadToken(System.Reflection.FieldInfo field)
+        public override void LoadToken(FieldInfo field)
         {
             this.generator.Emit(OpCodes.Ldtoken, field);
         }
@@ -874,12 +867,12 @@ namespace Jurassic.Compiler
         /// stack.  The virtual qualifier will be ignored, if present.
         /// </summary>
         /// <param name="method"> The method to retrieve a pointer for. </param>
-        public override void LoadStaticMethodPointer(System.Reflection.MethodBase method)
+        public override void LoadStaticMethodPointer(MethodBase method)
         {
-            if (method is System.Reflection.ConstructorInfo)
-                this.generator.Emit(OpCodes.Ldftn, (System.Reflection.ConstructorInfo)method);
-            else if (method is System.Reflection.MethodInfo)
-                this.generator.Emit(OpCodes.Ldftn, (System.Reflection.MethodInfo)method);
+            if (method is ConstructorInfo)
+                this.generator.Emit(OpCodes.Ldftn, (ConstructorInfo)method);
+            else if (method is MethodInfo)
+                this.generator.Emit(OpCodes.Ldftn, (MethodInfo)method);
             else
                 throw new InvalidOperationException("Unsupported subtype of MethodBase.");
         }
@@ -890,14 +883,14 @@ namespace Jurassic.Compiler
         /// </summary>
         /// <param name="method"> The method to retrieve a pointer for. </param>
         /// <exception cref="ArgumentException"> The method is static. </exception>
-        public override void LoadVirtualMethodPointer(System.Reflection.MethodBase method)
+        public override void LoadVirtualMethodPointer(MethodBase method)
         {
             if (method != null && method.IsStatic == true)
                 throw new ArgumentException(nameof(method));
-            if (method is System.Reflection.ConstructorInfo)
-                this.generator.Emit(OpCodes.Ldvirtftn, (System.Reflection.ConstructorInfo)method);
-            else if (method is System.Reflection.MethodInfo)
-                this.generator.Emit(OpCodes.Ldvirtftn, (System.Reflection.MethodInfo)method);
+            if (method is ConstructorInfo)
+                this.generator.Emit(OpCodes.Ldvirtftn, (ConstructorInfo)method);
+            else if (method is MethodInfo)
+                this.generator.Emit(OpCodes.Ldvirtftn, (MethodInfo)method);
             else
                 throw new InvalidOperationException("Unsupported subtype of MethodBase.");
         }
@@ -1129,23 +1122,6 @@ namespace Jurassic.Compiler
         public override void Breakpoint()
         {
             this.generator.Emit(OpCodes.Break);
-        }
-
-        /// <summary>
-        /// Marks a sequence point in the Microsoft intermediate language (MSIL) stream.
-        /// </summary>
-        /// <param name="document"> The document for which the sequence point is being defined. </param>
-        /// <param name="startLine"> The line where the sequence point begins. </param>
-        /// <param name="startColumn"> The column in the line where the sequence point begins. </param>
-        /// <param name="endLine"> The line where the sequence point ends. </param>
-        /// <param name="endColumn"> The column in the line where the sequence point ends. </param>
-        public override void MarkSequencePoint(System.Diagnostics.SymbolStore.ISymbolDocumentWriter document, int startLine, int startColumn, int endLine, int endColumn)
-        {
-#if ENABLE_DEBUGGING
-            this.generator.MarkSequencePoint(document, startLine, startColumn, endLine, endColumn);
-#else
-            throw new NotImplementedException();
-#endif
         }
 
 

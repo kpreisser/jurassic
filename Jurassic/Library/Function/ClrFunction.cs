@@ -180,7 +180,7 @@ namespace Jurassic.Library
             
             // TODO: Check how to procede with the call type.
             if (this.producesStackFrame)
-                this.Engine.PushStackFrame("native", DisplayName, 0, ScriptEngine.CallType.MethodCall);
+                this.Engine.PushStackFrame("native", Name, 0, ScriptEngine.CallType.MethodCall);
             try
             {
                 return this.callBinder.Call(this.Engine, thisBinding != null ? thisBinding : thisObject, arguments);
@@ -195,16 +195,17 @@ namespace Jurassic.Library
         /// <summary>
         /// Creates an object, using this function as the constructor.
         /// </summary>
+        /// <param name="newTarget"> The value of 'new.target'. </param>
         /// <param name="argumentValues"> An array of argument values. </param>
         /// <returns> The object that was created. </returns>
-        public override ObjectInstance ConstructLateBound(params object[] argumentValues)
+        public override ObjectInstance ConstructLateBound(FunctionInstance newTarget, params object[] argumentValues)
         {
             if (this.producesStackFrame)
-                this.Engine.PushStackFrame("native", DisplayName, 0, ScriptEngine.CallType.MethodCall);
+                this.Engine.PushStackFrame("native", Name, 0, ScriptEngine.CallType.MethodCall);
             try
             {            
                 if (this.constructBinder == null)
-                    throw new JavaScriptException(this.Engine, ErrorType.TypeError, "Objects cannot be constructed from built-in functions");
+                    throw new JavaScriptException(ErrorType.TypeError, "Objects cannot be constructed from built-in functions");
                 return (ObjectInstance)this.constructBinder.Call(this.Engine, this, argumentValues);
             }
             finally

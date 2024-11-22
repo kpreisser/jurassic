@@ -42,6 +42,8 @@ namespace Jurassic
         private NumberConstructor numberConstructor;
         private ObjectConstructor objectConstructor;
         private PromiseConstructor promiseConstructor;
+        private ProxyConstructor proxyConstructor;
+        private ReflectObject reflectObject;
         private RegExpConstructor regExpConstructor;
         private SetConstructor setConstructor;
         private StringConstructor stringConstructor;
@@ -111,6 +113,8 @@ namespace Jurassic
             this.mapConstructor = new MapConstructor(baseFunction);
             this.numberConstructor = new NumberConstructor(baseFunction);
             this.promiseConstructor = new PromiseConstructor(baseFunction);
+            this.proxyConstructor = new ProxyConstructor(baseFunction);
+            this.reflectObject = new ReflectObject(baseFunction);
             this.regExpConstructor = new RegExpConstructor(baseFunction);
             this.setConstructor = new SetConstructor(baseFunction);
             this.stringConstructor = new StringConstructor(baseFunction);
@@ -129,15 +133,16 @@ namespace Jurassic
             // Create the typed array functions.
             this.arrayBufferConstructor = new ArrayBufferConstructor(baseFunction);
             this.dataViewConstructor = new DataViewConstructor(baseFunction);
-            this.int8ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Int8Array);
-            this.uint8ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Uint8Array);
-            this.uint8ClampedArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Uint8ClampedArray);
-            this.int16ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Int16Array);
-            this.uint16ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Uint16Array);
-            this.int32ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Int32Array);
-            this.uint32ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Uint32Array);
-            this.float32ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Float32Array);
-            this.float64ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Float64Array);
+            var typedArrayInstanceDeclarativeProperties = TypedArrayInstance.ScriptEngine_GetDeclarativeProperties(this);
+            this.int8ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Int8Array, typedArrayInstanceDeclarativeProperties);
+            this.uint8ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Uint8Array, typedArrayInstanceDeclarativeProperties);
+            this.uint8ClampedArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Uint8ClampedArray, typedArrayInstanceDeclarativeProperties);
+            this.int16ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Int16Array, typedArrayInstanceDeclarativeProperties);
+            this.uint16ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Uint16Array, typedArrayInstanceDeclarativeProperties);
+            this.int32ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Int32Array, typedArrayInstanceDeclarativeProperties);
+            this.uint32ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Uint32Array, typedArrayInstanceDeclarativeProperties);
+            this.float32ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Float32Array, typedArrayInstanceDeclarativeProperties);
+            this.float64ArrayConstructor = new TypedArrayConstructor(baseFunction, TypedArrayType.Float64Array, typedArrayInstanceDeclarativeProperties);
 
             // Initialize the prototypes for the base of the prototype chain.
             ObjectInstance.InitializePrototypeProperties(baseObject, this.objectConstructor);
@@ -156,6 +161,8 @@ namespace Jurassic
             globalProperties.Add(new PropertyNameAndValue("Number", this.numberConstructor, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("Object", this.objectConstructor, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("Promise", this.promiseConstructor, PropertyAttributes.NonEnumerable));
+            globalProperties.Add(new PropertyNameAndValue("Proxy", this.proxyConstructor, PropertyAttributes.NonEnumerable));
+            globalProperties.Add(new PropertyNameAndValue("Reflect", this.reflectObject, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("RegExp", this.regExpConstructor, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("Set", this.setConstructor, PropertyAttributes.NonEnumerable));
             globalProperties.Add(new PropertyNameAndValue("String", this.stringConstructor, PropertyAttributes.NonEnumerable));
@@ -349,7 +356,7 @@ namespace Jurassic
                     var result = Object.Construct();
                     result.InitializeProperties(new List<PropertyNameAndValue>(1)
                     {
-                        new PropertyNameAndValue(Symbol.Iterator, new ClrStubFunction(FunctionInstancePrototype, "[Symbol.iterator]", 0,
+                        new PropertyNameAndValue(Library.Symbol.Iterator, new ClrStubFunction(FunctionInstancePrototype, "[Symbol.iterator]", 0,
                             (engine, thisObj, args) => thisObj), PropertyAttributes.NonEnumerable),
                     });
                     this.baseIteratorPrototype = result;
@@ -494,6 +501,22 @@ namespace Jurassic
         public PromiseConstructor Promise
         {
             get { return this.promiseConstructor; }
+        }
+
+        /// <summary>
+        /// Gets the built-in Proxy object.
+        /// </summary>
+        public ProxyConstructor Proxy
+        {
+            get { return this.proxyConstructor; }
+        }
+
+        /// <summary>
+        /// Gets the built-in Reflect object.
+        /// </summary>
+        public ReflectObject Reflect
+        {
+            get { return this.reflectObject; }
         }
 
         /// <summary>
@@ -693,20 +716,6 @@ namespace Jurassic
         //     DEBUGGING SUPPORT
         //_________________________________________________________________________________________
 
-#if ENABLE_DEBUGGING
-
-        /// <summary>
-        /// Gets or sets a value which indicates whether debug information should be generated.  If
-        /// this is set to <c>true</c> performance and memory usage are negatively impacted.
-        /// </summary>
-        public bool EnableDebugging
-        {
-            get;
-            set;
-        }
-
-#endif
-
         /// <summary>
         /// Gets or sets whether CLR types can be exposed directly to the script engine.  If this is set to 
         /// <c>false</c>, attempting to instantiate CLR types from script may result in exceptions being
@@ -736,11 +745,13 @@ namespace Jurassic
         /// <param name="source"> The javascript source code to execute. </param>
         /// <returns> A CompiledScript instance, which can be executed as many times as needed. </returns>
         /// <exception cref="ArgumentNullException"> <paramref name="source"/> is a <c>null</c> reference. </exception>
+        [Obsolete("Use CompiledEval.Compile() or CompiledScript.Compile() instead.")]
         public CompiledScript Compile(ScriptSource source)
         {
-            var methodGen = new GlobalMethodGenerator(
+            var methodGen = new GlobalOrEvalMethodGenerator(
                 source,                             // The source code.
-                CreateOptions());                   // The compiler options.
+                CreateOptions(),                    // The compiler options.
+                GlobalOrEvalMethodGenerator.GeneratorContext.Global);
 
             // Parse
             this.ParsingStarted?.Invoke(this, EventArgs.Empty);
@@ -789,11 +800,10 @@ namespace Jurassic
         /// <exception cref="ArgumentNullException"> <paramref name="source"/> is a <c>null</c> reference. </exception>
         public object Evaluate(ScriptSource source)
         {
-            var methodGen = new EvalMethodGenerator(
-                ObjectScope.CreateGlobalScope(this.Global), // The variable scope.
+            var methodGen = new GlobalOrEvalMethodGenerator(
                 source,                                     // The source code.
                 CreateOptions(),                            // The compiler options.
-                this.Global);                               // The value of the "this" keyword.
+                GlobalOrEvalMethodGenerator.GeneratorContext.GlobalEval);
 
             try
             {
@@ -814,12 +824,12 @@ namespace Jurassic
                 }
                 catch (SyntaxErrorException ex)
                 {
-                    throw new JavaScriptException(this, ErrorType.SyntaxError, ex.Message, ex.LineNumber, ex.SourcePath);
+                    throw new JavaScriptException(ErrorType.SyntaxError, ex.Message, ex.LineNumber, ex.SourcePath, ex);
                 }
 
                 // Execute
                 this.ExecutionStarted?.Invoke(this, EventArgs.Empty);
-                var result = methodGen.Execute(this);
+                var result = methodGen.Execute(this, RuntimeScope.CreateGlobalScope(this), Global);
 
                 // Execute any pending callbacks.
                 ExecutePostExecuteSteps();
@@ -917,7 +927,7 @@ namespace Jurassic
             }
             catch (SyntaxErrorException ex)
             {
-                throw new JavaScriptException(this, ErrorType.SyntaxError, ex.Message, ex.LineNumber, ex.SourcePath);
+                throw new JavaScriptException(ErrorType.SyntaxError, ex.Message, ex.LineNumber, ex.SourcePath);
             }
         }
 
@@ -973,9 +983,6 @@ namespace Jurassic
             return new CompilerOptions()
             {
                 ForceStrictMode = this.ForceStrictMode,
-#if ENABLE_DEBUGGING
-                EnableDebugging = this.EnableDebugging,
-#endif
                 CompatibilityMode = this.CompatibilityMode,
                 GenerateCancellationChecks = this.GenerateCancellationChecks,
                 EnableILAnalysis = this.EnableILAnalysis,
@@ -1005,7 +1012,8 @@ namespace Jurassic
         /// Gets the value of the global variable with the given name.
         /// </summary>
         /// <param name="variableName"> The name of the variable to retrieve the value for. </param>
-        /// <returns> The value of the global variable, or <c>null</c> otherwise. </returns>
+        /// <returns> The value of the global variable, or <c>Undefined.Value</c> if the variable
+        /// doesn't exist. </returns>
         public object GetGlobalValue(string variableName)
         {
             if (variableName == null)
@@ -1017,12 +1025,14 @@ namespace Jurassic
         /// Gets the value of the global variable with the given name and coerces it to the given
         /// type.
         /// </summary>
-        /// <typeparam name="T"> The type to coerce the value to. </typeparam>
+        /// <typeparam name="T"> The type to coerce the value to. Should be <c>bool</c>,
+        /// <c>int</c>, <c>double</c>, <c>string</c> or <see cref="ObjectInstance"/>. </typeparam>
         /// <param name="variableName"> The name of the variable to retrieve the value for. </param>
-        /// <returns> The value of the global variable, or <c>null</c> otherwise. </returns>
+        /// <returns> The value of the global variable (or <c>Undefined.Value</c> if the variable
+        /// doesn't exist), converted to the given type. </returns>
         /// <remarks> Note that <c>null</c> is coerced to the following values: <c>false</c> (if
         /// <typeparamref name="T"/> is <c>bool</c>), 0 (if <typeparamref name="T"/> is <c>int</c>
-        /// or <c>double</c>), string.Empty (if <typeparamref name="T"/> is <c>string</c>). </remarks>
+        /// or <c>double</c>), "undefined" (if <typeparamref name="T"/> is <c>string</c>). </remarks>
         public T GetGlobalValue<T>(string variableName)
         {
             if (variableName == null)
@@ -1097,7 +1107,7 @@ namespace Jurassic
                         throw new ArgumentException(string.Format("Cannot store value of type {0}.", value.GetType()), nameof(value));
                 }
             }
-            this.Global.SetPropertyValue(variableName, value, true);
+            this.Global.SetPropertyValue(variableName, value, this.Global, throwOnError: true);
         }
 
         /// <summary>
@@ -1115,7 +1125,7 @@ namespace Jurassic
             var value = this.Global.GetPropertyValue(functionName);
             if ((value is FunctionInstance) == false)
                 throw new InvalidOperationException(string.Format("'{0}' is not a function.", functionName));
-            return ((FunctionInstance)value).CallLateBound(null, argumentValues);
+            return ((FunctionInstance)value).CallLateBound(Global, argumentValues);
         }
 
         /// <summary>
@@ -1254,7 +1264,7 @@ namespace Jurassic
         /// strict mode code. </param>
         /// <returns> The value of the last statement that was executed, or <c>undefined</c> if
         /// there were no executed statements. </returns>
-        internal object Eval(string code, Scope scope, object thisObject, bool strictMode)
+        internal object Eval(string code, RuntimeScope scope, object thisObject, bool strictMode)
         {
             // Check if the cache contains the eval already.
             //var key = new EvalCacheKey() { Code = code, Scope = scope, StrictMode = strictMode };
@@ -1274,11 +1284,9 @@ namespace Jurassic
 
             // Parse the eval string into an AST.
             var options = new CompilerOptions() { ForceStrictMode = strictMode };
-            var evalGen = new EvalMethodGenerator(
-                scope,                                                  // The scope to run the code in.
-                new StringScriptSource(code, "eval"),                   // The source code to execute.
-                options,                                                // Options.
-                thisObject);                                            // The value of the "this" keyword.
+            var evalGen = new GlobalOrEvalMethodGenerator(new StringScriptSource(code, "eval"),
+                options,
+                GlobalOrEvalMethodGenerator.GeneratorContext.Eval);
 
             // Make sure the eval cache doesn't get too big.  TODO: add some sort of LRU strategy?
             //if (evalCache.Count > 100)
@@ -1291,12 +1299,12 @@ namespace Jurassic
             {
 
                 // Compile and run the eval code.
-                return evalGen.Execute(this);
+                return evalGen.Execute(this, scope, thisObject);
 
             }
             catch (SyntaxErrorException ex)
             {
-                throw new JavaScriptException(this, ErrorType.SyntaxError, ex.Message, ex.LineNumber, ex.SourcePath);
+                throw new JavaScriptException(ErrorType.SyntaxError, ex.Message, ex.LineNumber, ex.SourcePath);
             }
         }
 
@@ -1468,6 +1476,47 @@ namespace Jurassic
                 if (this.staticTypeWrapperCache == null)
                     this.staticTypeWrapperCache = new Dictionary<Type, ClrStaticTypeWrapper>();
                 return this.staticTypeWrapperCache;
+            }
+        }
+
+
+
+        //     TEMPLATE STRINGS ARRAY CACHE
+        //_________________________________________________________________________________________
+
+        private object templateArraysLock = new object();
+        private Dictionary<int, ArrayInstance> templateArraysCache;
+
+        /// <summary>
+        /// Returns a cached template array, suitable for passing to a tag function.
+        /// </summary>
+        /// <param name="cacheKey"> The cache key that identifies the array to return. </param>
+        /// <returns> The cached template array, or <c>null</c> if no array with the given cache
+        /// key has been cached. </returns>
+        internal ArrayInstance GetCachedTemplateStringsArray(int cacheKey)
+        {
+            lock (templateArraysLock)
+            {
+                if (templateArraysCache == null)
+                    return null;
+                if (templateArraysCache.TryGetValue(cacheKey, out ArrayInstance result))
+                    return result;
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Caches a template array using the given cache key.
+        /// </summary>
+        /// <param name="cacheKey"> The cache key that identifies the array to cache. </param>
+        /// <param name="cachedValue"> The cached value. </param>
+        internal void SetCachedTemplateStringsArray(int cacheKey, ArrayInstance cachedValue)
+        {
+            lock (templateArraysLock)
+            {
+                if (templateArraysCache == null)
+                    templateArraysCache = new Dictionary<int, ArrayInstance>();
+                templateArraysCache[cacheKey] = cachedValue;
             }
         }
 

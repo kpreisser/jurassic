@@ -1,14 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 
 namespace Jurassic.Library
 {
     /// <summary>
     /// The prototype for the Date object.
     /// </summary>
-    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
-    [DebuggerTypeProxy(typeof(ObjectInstanceDebugView))]
     public partial class DateInstance : ObjectInstance
     {
         /// <summary>
@@ -131,36 +127,6 @@ namespace Jurassic.Library
         public bool IsValid
         {
             get { return this.value.HasValue; }
-        }
-
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayValue
-        {
-            get
-            {
-                return DateInstance.ToString(this);
-            }
-        }
-
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window when this object is part of array, map, etc.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayShortValue
-        {
-            get { return this.DebuggerDisplayValue; }
-        }
-
-        /// <summary>
-        /// Gets type, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayType
-        {
-            get { return "Date"; }
         }
 
 
@@ -830,7 +796,7 @@ namespace Jurassic.Library
         public string ToISOString()
         {
             if (!this.IsValid)
-                throw new JavaScriptException(this.Engine, ErrorType.RangeError, "The date is invalid");
+                throw new JavaScriptException(ErrorType.RangeError, "The date is invalid");
             return ConvertTimeToUtc(Engine, this.Value).Value.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", System.Globalization.DateTimeFormatInfo.InvariantInfo);
         }
 
@@ -960,7 +926,7 @@ namespace Jurassic.Library
                 return thisObj.GetPrimitiveValuePreES6(PrimitiveTypeHint.String);
             if (hint == "number")
                 return thisObj.GetPrimitiveValuePreES6(PrimitiveTypeHint.Number);
-            throw new JavaScriptException(engine, ErrorType.TypeError, "Invalid type hint.");
+            throw new JavaScriptException(ErrorType.TypeError, "Invalid type hint.");
         }
 
 
@@ -1003,7 +969,7 @@ namespace Jurassic.Library
         public static double UTC(ScriptEngine engine, int year, int month, int day = 1, int hour = 0,
             int minute = 0, int second = 0, int millisecond = 0)
         {
-            return ToJSDate(ToUtcDateTime(engine, year, month, day, hour, minute, second, millisecond, DateTimeKind.Utc));
+            return ToJSDate(ToUtcDateTime(engine, year >= 0 && year < 100 ? year + 1900 : year, month, day, hour, minute, second, millisecond, DateTimeKind.Utc));
         }
 
         /// <summary>

@@ -40,7 +40,7 @@ namespace Jurassic.Library
         [JSCallFunction]
         public object Call()
         {
-            throw new JavaScriptException(Engine, ErrorType.TypeError, "Constructor ArrayBuffer requires 'new'");
+            throw new JavaScriptException(ErrorType.TypeError, "Constructor ArrayBuffer requires 'new'");
         }
 
         /// <summary>
@@ -53,9 +53,9 @@ namespace Jurassic.Library
         public ArrayBufferInstance Construct(int size)
         {
             if (size < 0)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "Invalid array buffer length.");
+                throw new JavaScriptException(ErrorType.RangeError, "Invalid array buffer length.");
             if (Engine.ArrayBufferSizeLimit.HasValue && size > Engine.ArrayBufferSizeLimit.Value)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, $"The array buffer length must not exceed " 
+                throw new JavaScriptException(ErrorType.RangeError, $"The array buffer length must not exceed " 
                         + $"{Engine.ArrayBufferSizeLimit.Value.ToString(CultureInfo.InvariantCulture)} bytes.");
             return new ArrayBufferInstance(this.InstancePrototype, size);
         }

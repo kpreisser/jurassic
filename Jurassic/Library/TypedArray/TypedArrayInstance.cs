@@ -1,14 +1,11 @@
 ﻿using System;
-using System.Diagnostics;
-using System.Text;
+using System.Collections.Generic;
 
 namespace Jurassic.Library
 {
     /// <summary>
     /// Represents a typed array instance.
     /// </summary>
-    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
-    [DebuggerTypeProxy(typeof(TypedArrayInstanceDebugView))]
     public partial class TypedArrayInstance : ObjectInstance
     {
         private TypedArrayType type;
@@ -44,10 +41,13 @@ namespace Jurassic.Library
         /// </summary>
         /// <param name="engine"> The script environment. </param>
         /// <param name="constructor"> A reference to the constructor that owns the prototype. </param>
-        internal static ObjectInstance CreatePrototype(ScriptEngine engine, TypedArrayConstructor constructor)
+        /// <param name="declarativeProperties"> The result of calling <see cref="GetDeclarativeProperties(ScriptEngine)"/>. </param>
+        internal static ObjectInstance CreatePrototype(ScriptEngine engine, TypedArrayConstructor constructor, List<PropertyNameAndValue> declarativeProperties)
         {
             var result = engine.Object.Construct();
-            var properties = GetDeclarativeProperties(engine);
+
+            var properties = new List<PropertyNameAndValue>(declarativeProperties.Count + 2);
+            properties.AddRange(declarativeProperties);
             properties.Add(new PropertyNameAndValue("constructor", constructor, PropertyAttributes.NonEnumerable));
 
             // From the spec: the initial value of the @@iterator property is the same function
@@ -55,10 +55,20 @@ namespace Jurassic.Library
             PropertyNameAndValue valuesProperty = properties.Find(p => "values".Equals(p.Key));
             if (valuesProperty == null)
                 throw new InvalidOperationException("Expected values property.");
-            properties.Add(new PropertyNameAndValue(engine.Symbol.Iterator, valuesProperty.Value, PropertyAttributes.NonEnumerable));
+            properties.Add(new PropertyNameAndValue(Symbol.Iterator, valuesProperty.Value, PropertyAttributes.NonEnumerable));
 
             result.InitializeProperties(properties);
             return result;
+        }
+
+        /// <summary>
+        /// Speeds up initialization by only calling GetDeclarativeProperties once.
+        /// </summary>
+        /// <param name="engine"></param>
+        /// <returns></returns>
+        internal static List<PropertyNameAndValue> ScriptEngine_GetDeclarativeProperties(ScriptEngine engine)
+        {
+            return GetDeclarativeProperties(engine);
         }
 
 
@@ -206,50 +216,6 @@ namespace Jurassic.Library
             }
         }
 
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayValue
-        {
-            get
-            {
-                StringBuilder sb = new StringBuilder();
-                sb.Append("[");
-                bool comma = false;
-                for (int i = 0; i < this.Length; i++)
-                {
-                    if (comma)
-                    {
-                        sb.Append(", ");
-                    }
-                    sb.Append(DebuggerDisplayHelper.ShortStringRepresentation(this[i]));
-                    comma = true;
-                }
-
-                sb.Append("]");
-                return sb.ToString();
-            }
-        }
-
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window when this object is part of array, map, etc.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayShortValue
-        {
-            get { return this.DebuggerDisplayType; }
-        }
-
-        /// <summary>
-        /// Gets type, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayType
-        {
-            get { return string.Format("{0}({1})", this.Type, this.Length); }
-        }
-
 
 
         //     JAVASCRIPT PROPERTIES
@@ -344,11 +310,15 @@ namespace Jurassic.Library
         /// <param name="index"> The array index of the property to set. </param>
         /// <param name="value"> The value to set the property to.  This must be a javascript
         /// primitive (double, string, etc) or a class derived from <see cref="ObjectInstance"/>. </param>
+        /// <param name="thisValue"> The value of the "this" keyword inside a getter. </param>
         /// <param name="throwOnError"> <c>true</c> to throw an exception if the property could not
         /// be set.  This can happen if the property is read-only or if the object is sealed. </param>
-        public override void SetPropertyValue(uint index, object value, bool throwOnError)
+        /// <returns> <c>false</c> if <paramref name="throwOnError"/> is false and an error
+        /// occurred; <c>true</c> otherwise. </returns>
+        public override bool SetPropertyValue(uint index, object value, object thisValue, bool throwOnError)
         {
             this[(int)index] = value;
+            return true;
         }
 
         /// <summary>
@@ -463,6 +433,16 @@ namespace Jurassic.Library
             public override void Delete(int index)
             {
                 WrappedInstance.Delete((uint)index, true);
+            }
+
+            /// <summary>
+            /// Indicates whether the array index exists (has a value).
+            /// </summary>
+            /// <param name="index"> The index to check. </param>
+            /// <returns> <c>true</c> if the index exists, <c>false</c> otherwise. </returns>
+            public override bool HasProperty(int index)
+            {
+                return WrappedInstance.HasProperty(index.ToString());
             }
 
             /// <summary>
@@ -746,12 +726,12 @@ namespace Jurassic.Library
         public void Set(ObjectInstance array, int offset = 0)
         {
             if (offset < 0)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "Start offset cannot be negative");
+                throw new JavaScriptException(ErrorType.RangeError, "Start offset cannot be negative");
             if (array is TypedArrayInstance)
             {
                 var typedArray = (TypedArrayInstance)array;
                 if (typedArray.Length + offset > this.Length)
-                    throw new JavaScriptException(Engine, ErrorType.RangeError, "Source array is too large");
+                    throw new JavaScriptException(ErrorType.RangeError, "Source array is too large");
                 if (this.Buffer == typedArray.Buffer && this.ByteOffset + offset * BytesPerElement > typedArray.ByteOffset)
                 {
                     // Copy in the opposite direction.
@@ -773,7 +753,7 @@ namespace Jurassic.Library
             {
                 int arrayLength = TypeConverter.ToInteger(array["length"]);
                 if (arrayLength + offset > this.Length)
-                    throw new JavaScriptException(Engine, ErrorType.RangeError, "Source array is too large");
+                    throw new JavaScriptException(ErrorType.RangeError, "Source array is too large");
                 for (int i = 0; i < arrayLength; i ++)
                 {
                     this[offset + i] = array[i];
@@ -884,7 +864,7 @@ namespace Jurassic.Library
         public static string ToString(ObjectInstance thisObj)
         {
             if (!(thisObj is TypedArrayInstance))
-                throw new JavaScriptException(thisObj.Engine, ErrorType.TypeError, "This function is not generic.");
+                throw new JavaScriptException(ErrorType.TypeError, "This function is not generic.");
             return new TypedArrayAdapter((TypedArrayInstance)thisObj).ToString();
         }
     }

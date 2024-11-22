@@ -11,7 +11,7 @@ namespace Jurassic.Library
     {
         private readonly bool producesStackFrame;
         private Func<ScriptEngine, object, object[], object> callBinder;
-        private Func<ScriptEngine, object, object[], ObjectInstance> constructBinder;
+        private Func<ScriptEngine, FunctionInstance, FunctionInstance, object[], ObjectInstance> constructBinder;
 
 
         //     INITIALIZATION
@@ -72,7 +72,7 @@ namespace Jurassic.Library
         /// <param name="construct"> The delegate to call when calling the JS method as a constructor. </param>
         /// <param name="call"> The delegate to call when function is called. </param>
         public ClrStubFunction(ObjectInstance prototype,
-            Func<ScriptEngine, object, object[], ObjectInstance> construct,
+            Func<ScriptEngine, FunctionInstance, FunctionInstance, object[], ObjectInstance> construct,
             Func<ScriptEngine, object, object[], object> call)
             : base(prototype)
         {
@@ -89,9 +89,12 @@ namespace Jurassic.Library
         /// <param name="instancePrototype"> The value of the "prototype" property. </param>
         protected void InitializeConstructorProperties(List<PropertyNameAndValue> properties, string name, int length, ObjectInstance instancePrototype)
         {
+            if (name == null)
+                throw new ArgumentNullException("name");
             properties.Add(new PropertyNameAndValue("name", name, PropertyAttributes.Configurable));
             properties.Add(new PropertyNameAndValue("length", length, PropertyAttributes.Configurable));
-            properties.Add(new PropertyNameAndValue("prototype", instancePrototype, PropertyAttributes.Sealed));
+            if (instancePrototype != null)
+                properties.Add(new PropertyNameAndValue("prototype", instancePrototype, PropertyAttributes.Sealed));
         }
 
         /// <summary>
@@ -105,7 +108,7 @@ namespace Jurassic.Library
         /// <param name="call"> The delegate to call when function is called. </param>
         protected ClrStubFunction(ObjectInstance prototype,
             string name, int length, ObjectInstance instancePrototype,
-            Func<ScriptEngine, object, object[], ObjectInstance> construct,
+            Func<ScriptEngine, FunctionInstance, FunctionInstance, object[], ObjectInstance> construct,
             Func<ScriptEngine, object, object[], object> call)
             : base(prototype)
         {
@@ -140,7 +143,7 @@ namespace Jurassic.Library
             }
 
             if (this.producesStackFrame)
-                this.Engine.PushStackFrame("native", DisplayName, 0, ScriptEngine.CallType.MethodCall);
+                this.Engine.PushStackFrame("native", Name, 0, ScriptEngine.CallType.MethodCall);
             try
             {
                 return this.callBinder(this.Engine, constructBinder != null ? this : thisObject, argumentValues);
@@ -153,19 +156,29 @@ namespace Jurassic.Library
         }
 
         /// <summary>
+        /// Indicates whether the 'new' operator can be used on this function.
+        /// Will be <c>false</c> for built-in functions like Math.max.
+        /// </summary>
+        public override bool IsConstructor
+        {
+            get { return this.constructBinder != null; }
+        }
+
+        /// <summary>
         /// Creates an object, using this function as the constructor.
         /// </summary>
+        /// <param name="newTarget"> The value of 'new.target'. </param>
         /// <param name="argumentValues"> An array of argument values. </param>
         /// <returns> The object that was created. </returns>
-        public override ObjectInstance ConstructLateBound(params object[] argumentValues)
+        public override ObjectInstance ConstructLateBound(FunctionInstance newTarget, params object[] argumentValues)
         {
             if (this.producesStackFrame)
-                this.Engine.PushStackFrame("native", DisplayName, 0, ScriptEngine.CallType.MethodCall);
+                this.Engine.PushStackFrame("native", Name, 0, ScriptEngine.CallType.MethodCall);
             try
             {
                 if (this.constructBinder == null)
-                    throw new JavaScriptException(this.Engine, ErrorType.TypeError, "Objects cannot be constructed from built-in functions.");
-                return (ObjectInstance)this.constructBinder(this.Engine, this, argumentValues);
+                    throw new JavaScriptException(ErrorType.TypeError, "Objects cannot be constructed from built-in functions.");
+                return this.constructBinder(this.Engine, this, newTarget, argumentValues);
             }
             finally
             {

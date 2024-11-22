@@ -75,7 +75,7 @@ namespace Jurassic.Library
             // native method calls a constructor function, the calltype will bei incorrect.
             // To fix this, we would need to somehow allow to modify the current stack frame.
             if (this.producesStackFrame)
-                this.Engine.PushStackFrame("native", DisplayName, 0, ScriptEngine.CallType.MethodCall);
+                this.Engine.PushStackFrame("native", Name, 0, ScriptEngine.CallType.MethodCall);
             UserDefinedFunction.currentRecursionDepth++;
             try
             {

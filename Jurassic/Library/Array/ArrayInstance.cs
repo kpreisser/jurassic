@@ -1,16 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Text;
 
 namespace Jurassic.Library
 {
     /// <summary>
     /// Represents an instance of the JavaScript Array object.
     /// </summary>
-    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
-    [DebuggerTypeProxy(typeof(ArrayInstanceDebugView))]
     public partial class ArrayInstance : ObjectInstance
     {
         // The array, if it is dense.
@@ -109,7 +105,21 @@ namespace Jurassic.Library
             PropertyNameAndValue valuesProperty = properties.Find(p => "values".Equals(p.Key));
             if (valuesProperty == null)
                 throw new InvalidOperationException("Expected values property.");
-            properties.Add(new PropertyNameAndValue(engine.Symbol.Iterator, valuesProperty.Value, PropertyAttributes.NonEnumerable));
+            properties.Add(new PropertyNameAndValue(Symbol.Iterator, valuesProperty.Value, PropertyAttributes.NonEnumerable));
+
+            // Create the @@unscopables data property.
+            var unscopables = engine.Object.Construct();
+            unscopables["copyWithin"] = true;
+            unscopables["entries"] = true;
+            unscopables["fill"] = true;
+            unscopables["find"] = true;
+            unscopables["findIndex"] = true;
+            unscopables["flat"] = true;
+            unscopables["flatMap"] = true;
+            unscopables["includes"] = true;
+            unscopables["keys"] = true;
+            unscopables["values"] = true;
+            properties.Add(new PropertyNameAndValue(Symbol.Unscopables, unscopables, PropertyAttributes.Configurable));
 
             result.InitializeProperties(properties);
             return result;
@@ -209,44 +219,6 @@ namespace Jurassic.Library
             return this.Properties.Where(pnv => (pnv.Key is string) && (pnv.Key as string) != "length").Count();
         }
 
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayValue
-        {
-            get
-            {
-                IEnumerable<string> strValues = 
-                    this.Properties.Where(pnv => !((pnv.Key is string) && (pnv.Key as string) == "length")).
-                        Select(pnv=> DebuggerDisplayHelper.ShortStringRepresentation(pnv.Value));
-
-                return string.Format("[{0}]", string.Join(", ", strValues));
-            }
-        }
-
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window when this object is part of array, map, etc.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayShortValue
-        {
-            get
-            {
-                string result = string.Format("Array({0})", this.GetLength());
-                return result;
-            }
-        }
-
-
-        /// <summary>
-        /// Gets type, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayType
-        {
-            get { return "Array"; }
-        }
 
 
         //     INTERNAL HELPER METHODS
@@ -260,7 +232,7 @@ namespace Jurassic.Library
         /// an array index. </returns>
         internal static uint ParseArrayIndex(object key)
         {
-            if (key is SymbolInstance)
+            if (key is Symbol)
                 return uint.MaxValue;
 
             var propertyName = (string)key;
@@ -294,6 +266,31 @@ namespace Jurassic.Library
             return result;
         }
 
+        /// <summary>
+        /// Converts the JS array to a .NET object array.
+        /// </summary>
+        /// <returns> A .NET object array. </returns>
+        internal object[] ToArray()
+        {
+            var result = new object[this.length];
+            if (this.dense != null)
+            {
+                Array.Copy(this.dense, result, this.length);
+                if (this.denseMayContainHoles)
+                {
+                    for (uint i = 0; i < this.length; i++)
+                        if (result[i] == null)
+                            result[i] = Undefined.Value;
+                }
+            }
+            else
+            {
+                for (uint i = 0; i < this.length; i++)
+                    result[i] = this[i];
+            }
+            return result;
+        }
+
 
 
         //     OVERRIDES
@@ -312,7 +309,7 @@ namespace Jurassic.Library
                 // The array is dense and therefore has at least "length" elements.
                 if (index < this.length)
                     return new PropertyDescriptor(this.dense[index], PropertyAttributes.FullAccess);
-                return PropertyDescriptor.Undefined;
+                return PropertyDescriptor.Missing;
             }
 
             // The array is sparse and therefore has "holes".
@@ -327,9 +324,12 @@ namespace Jurassic.Library
         /// <param name="index"> The array index of the property to set. </param>
         /// <param name="value"> The value to set the property to.  This must be a javascript
         /// primitive (double, string, etc) or a class derived from <see cref="ObjectInstance"/>. </param>
+        /// <param name="thisValue"> The value of the "this" keyword inside a getter. </param>
         /// <param name="throwOnError"> <c>true</c> to throw an exception if the property could not
         /// be set.  This can happen if the property is read-only or if the object is sealed. </param>
-        public override void SetPropertyValue(uint index, object value, bool throwOnError)
+        /// <returns> <c>false</c> if <paramref name="throwOnError"/> is false and an error
+        /// occurred; <c>true</c> otherwise. </returns>
+        public override bool SetPropertyValue(uint index, object value, object thisValue, bool throwOnError)
         {
             value = value ?? Undefined.Value;
             if (this.dense != null)
@@ -376,6 +376,7 @@ namespace Jurassic.Library
                 this.sparse[index] = value;
                 this.length = Math.Max(this.length, index + 1);
             }
+            return true;
         }
 
         /// <summary>
@@ -421,7 +422,7 @@ namespace Jurassic.Library
                 if (descriptor.IsAccessor == true)
                 {
                     if (throwOnError == true)
-                        throw new JavaScriptException(this.Engine, ErrorType.TypeError, "Accessors are not supported for array elements.");
+                        throw new JavaScriptException(ErrorType.TypeError, "Accessors are not supported for array elements.");
                     return false;
                 }
 
@@ -429,7 +430,7 @@ namespace Jurassic.Library
                 if (descriptor.Attributes != PropertyAttributes.FullAccess)
                 {
                     if (throwOnError == true)
-                        throw new JavaScriptException(this.Engine, ErrorType.TypeError, "Non-accessible array elements are not supported.");
+                        throw new JavaScriptException(ErrorType.TypeError, "Non-accessible array elements are not supported.");
                     return false;
                 }
 
@@ -447,9 +448,10 @@ namespace Jurassic.Library
         }
 
         /// <summary>
-        /// Gets an enumerable list of every property name and value associated with this object.
+        /// Gets an enumerable list of every property name associated with this object.
+        /// Does not include properties in the prototype chain.
         /// </summary>
-        public override IEnumerable<PropertyNameAndValue> Properties
+        public override IEnumerable<object> OwnKeys
         {
             get
             {
@@ -460,7 +462,7 @@ namespace Jurassic.Library
                     {
                         object arrayElementValue = this.dense[i];
                         if (arrayElementValue != null)
-                            yield return new PropertyNameAndValue(i.ToString(), arrayElementValue, PropertyAttributes.FullAccess);
+                            yield return i.ToString();
                     }
                 }
                 else
@@ -471,13 +473,13 @@ namespace Jurassic.Library
                         {
                             object arrayElementValue = this.sparse[i];
                             if (arrayElementValue != null)
-                                yield return new PropertyNameAndValue(i.ToString(), arrayElementValue, PropertyAttributes.FullAccess);
+                                yield return i.ToString();
                         }
                 }
 
                 // Delegate to the base implementation.
-                foreach (var nameAndValue in base.Properties)
-                    yield return nameAndValue;
+                foreach (var key in base.OwnKeys)
+                    yield return key;
             }
         }
 
@@ -495,7 +497,7 @@ namespace Jurassic.Library
         /// <returns> A new array consisting of the values of this array plus any number of
         /// additional items. </returns>
         [JSInternalFunction(Name = "concat", Flags = JSFunctionFlags.HasThisObject)]
-        public static ArrayInstance Concat(ObjectInstance thisObj, params object[] items)
+        public static ObjectInstance Concat(ObjectInstance thisObj, params object[] items)
         {
             // Create a new items array with the thisObject at the beginning.
             var temp = new object[items.Length + 1];
@@ -508,16 +510,24 @@ namespace Jurassic.Library
             bool dense = true;
             uint length = (uint)items.Length;
             foreach (object item in items)
-                if (item is ArrayInstance)
+                if (IsConcatSpreadable(thisObj.Engine, item))
                 {
-                    length += ((ArrayInstance)item).Length - 1;
-                    if (((ArrayInstance)item).dense == null)
+                    if (item is ArrayInstance)
+                    {
+                        length += ((ArrayInstance)item).Length - 1;
+                        if (((ArrayInstance)item).dense == null)
+                            dense = false;
+                    }
+                    else
+                    {
+                        length += GetLength((ObjectInstance)item) - 1;
                         dense = false;
+                    }
                 }
 
             // This method only supports arrays of length up to 2^31-1, rather than 2^32-1.
             if (length > int.MaxValue)
-                throw new JavaScriptException(thisObj.Engine, ErrorType.RangeError, "The resulting array is too long");
+                throw new JavaScriptException(ErrorType.RangeError, "The resulting array is too long");
 
             if (dense == true)
             {
@@ -527,19 +537,25 @@ namespace Jurassic.Library
                 int index = 0;
                 foreach (object item in items)
                 {
-                    if (item is ArrayInstance)
+                    if (IsConcatSpreadable(thisObj.Engine, item))
                     {
                         // Add the items in the array to the end of the resulting array.
-                        var array = (ArrayInstance)item;
-                        Array.Copy(array.dense, 0, result, index, (int)array.Length);
-                        if (array.denseMayContainHoles == true && array.Prototype != null)
+                        if (item is ArrayInstance array)
                         {
-                            // Populate holes from the prototype.
-                            for (uint i = 0; i < array.length; i++)
-                                if (array.dense[i] == null)
-                                    result[index + i] = array.Prototype.GetPropertyValue(i);
+                            Array.Copy(array.dense, 0, result, index, (int)array.Length);
+                            if (array.denseMayContainHoles == true && array.Prototype != null)
+                            {
+                                // Populate holes from the prototype.
+                                for (uint i = 0; i < array.length; i++)
+                                    if (array.dense[i] == null)
+                                        result[index + i] = array.Prototype.GetPropertyValue(i);
+                            }
+                            index += (int)array.Length;
                         }
-                        index += (int)array.Length;
+                        else
+                        {
+                            throw new InvalidOperationException();
+                        }
                     }
                     else
                     {
@@ -549,7 +565,7 @@ namespace Jurassic.Library
                 }
 
                 // Return the new dense array.
-                return new ArrayInstance(thisObj.Engine.Array.InstancePrototype, result);
+                return new ArrayInstanceAdapter(thisObj).ConstructArray(result);
             }
             else
             {
@@ -559,33 +575,43 @@ namespace Jurassic.Library
                 int index = 0;
                 foreach (object item in items)
                 {
-                    if (item is ArrayInstance)
+                    if (IsConcatSpreadable(thisObj.Engine, item))
                     {
                         // Add the items in the array to the end of the resulting array.
-                        var array = (ArrayInstance)item;
-                        if (array.dense != null)
+                        if (item is ArrayInstance array)
                         {
-                            result.CopyTo(array.dense, (uint)index, (int)array.Length);
-                            if (array.Prototype != null)
+                            if (array.dense != null)
                             {
-                                // Populate holes from the prototype.
-                                for (uint i = 0; i < array.length; i++)
-                                    if (array.dense[i] == null)
-                                        result[(uint)index + i] = array.Prototype.GetPropertyValue(i);
+                                result.CopyTo(array.dense, (uint)index, (int)array.Length);
+                                if (array.Prototype != null)
+                                {
+                                    // Populate holes from the prototype.
+                                    for (uint i = 0; i < array.length; i++)
+                                        if (array.dense[i] == null)
+                                            result[(uint)index + i] = array.Prototype.GetPropertyValue(i);
+                                }
                             }
+                            else
+                            {
+                                result.CopyTo(array.sparse, (uint)index);
+                                if (array.Prototype != null)
+                                {
+                                    // Populate holes from the prototype.
+                                    for (uint i = 0; i < array.Length; i++)
+                                        if (array.sparse[i] == null)
+                                            result[(uint)index + i] = array.Prototype.GetPropertyValue(i);
+                                }
+                            }
+                            index += (int)array.Length;
                         }
                         else
                         {
-                            result.CopyTo(array.sparse, (uint)index);
-                            if (array.Prototype != null)
-                            {
-                                // Populate holes from the prototype.
-                                for (uint i = 0; i < array.Length; i++)
-                                    if (array.sparse[i] == null)
-                                        result[(uint)index + i] = array.Prototype.GetPropertyValue(i);
-                            }
+                            // Concat array-like elements.
+                            uint itemLength = GetLength((ObjectInstance)item);
+                            foreach (var indexAndValue in EnumerateArrayLikeValues(thisObj.Engine, (ObjectInstance)item, itemLength))
+                                result[(uint)index + indexAndValue.Key] = indexAndValue.Value;
+                            index += (int)itemLength;
                         }
-                        index += (int)array.Length;
                     }
                     else
                     {
@@ -711,17 +737,17 @@ namespace Jurassic.Library
                 for (int i = 0; i < items.Length; i++)
                 {
                     // Append the new item to the array.
-                    thisObj.SetPropertyValue((arrayLength2++).ToString(), items[i], true);
+                    thisObj.SetPropertyValue((arrayLength2++).ToString(), items[i], thisObj, throwOnError: true);
                 }
                 SetLength(thisObj, uint.MaxValue);
-                throw new JavaScriptException(thisObj.Engine, ErrorType.RangeError, "Invalid array length");
+                throw new JavaScriptException(ErrorType.RangeError, "Invalid array length");
             }
 
             // For each item to append.
             for (int i = 0; i < items.Length; i++)
             {
                 // Append the new item to the array.
-                thisObj.SetPropertyValue(arrayLength ++, items[i], true);
+                thisObj.SetPropertyValue(arrayLength ++, items[i], thisObj, throwOnError: true);
             }
 
             // Update the length property.
@@ -742,8 +768,8 @@ namespace Jurassic.Library
                 // Even though attempting to push more items than can fit in the array raises an
                 // error, the items are still pushed correctly (but the length is stuck at the
                 // maximum).
-                SetPropertyValue(this.length.ToString(), item, false);
-                throw new JavaScriptException(this.Engine, ErrorType.RangeError, "Invalid array length");
+                SetPropertyValue(this.length.ToString(), item, this, throwOnError: false);
+                throw new JavaScriptException(ErrorType.RangeError, "Invalid array length");
             }
 
             if (this.dense != null)
@@ -790,7 +816,7 @@ namespace Jurassic.Library
             // Shift all the other elements down one place.
             for (uint i = 1; i < arrayLength; i++)
             {
-                object elementValue = thisObj[i];
+                object elementValue = thisObj.GetPropertyValue(i);
                 if (elementValue != null)
                     thisObj[i - 1] = elementValue;
                 else
@@ -813,7 +839,7 @@ namespace Jurassic.Library
         /// <param name="thisObj"> The array that is being operated on. </param>
         /// <returns> An array containing the deleted elements, if any. </returns>
         [JSInternalFunction(Name = "splice", Flags = JSFunctionFlags.HasThisObject | JSFunctionFlags.MutatesThisObject, Length = 2)]
-        public static ArrayInstance Splice(ObjectInstance thisObj)
+        public static ObjectInstance Splice(ObjectInstance thisObj)
         {
             // If the number of actual arguments is 0, then
             //     Let insertCount be 0.
@@ -828,7 +854,7 @@ namespace Jurassic.Library
         /// <param name="start"> The index to start deleting from. </param>
         /// <returns> An array containing the deleted elements, if any. </returns>
         [JSInternalFunction(Name = "splice", Flags = JSFunctionFlags.HasThisObject | JSFunctionFlags.MutatesThisObject, Length = 2)]
-        public static ArrayInstance Splice(ObjectInstance thisObj, int start)
+        public static ObjectInstance Splice(ObjectInstance thisObj, int start)
         {
             // Else if the number of actual arguments is 1, then
             //     Let insertCount be 0.
@@ -845,14 +871,14 @@ namespace Jurassic.Library
         /// <param name="items"> The items to insert. </param>
         /// <returns> An array containing the deleted elements, if any. </returns>
         [JSInternalFunction(Name = "splice", Flags = JSFunctionFlags.HasThisObject | JSFunctionFlags.MutatesThisObject, Length = 2)]
-        public static ArrayInstance Splice(ObjectInstance thisObj, int start, int deleteCount, params object[] items)
+        public static ObjectInstance Splice(ObjectInstance thisObj, int start, int deleteCount, params object[] items)
         {
             // Get the length of the array.
             uint arrayLength = GetLength(thisObj);
 
             // This method only supports arrays of length up to 2^31-1.
             if (arrayLength > int.MaxValue)
-                throw new JavaScriptException(thisObj.Engine, ErrorType.RangeError, "The array is too long");
+                throw new JavaScriptException(ErrorType.RangeError, "The array is too long");
 
             // Fix the arguments so they are positive and within the bounds of the array.
             if (start < 0)
@@ -890,7 +916,7 @@ namespace Jurassic.Library
                 thisObj[(uint)(start + i)] = items[i];
 
             // Return the deleted items.
-            return thisObj.Engine.Array.New(deletedItems);
+            return new ArrayInstanceAdapter(thisObj).ConstructArray(deletedItems);
         }
 
         /// <summary>
@@ -908,7 +934,7 @@ namespace Jurassic.Library
             {
                 // Dense arrays are supported up to 2^32-1.
                 if (array.length + items.Length > int.MaxValue)
-                    throw new JavaScriptException(thisObj.Engine, ErrorType.RangeError, "Invalid array length");
+                    throw new JavaScriptException(ErrorType.RangeError, "Invalid array length");
 
                 if (array.denseMayContainHoles == true && array.Prototype != null)
                 {
@@ -941,7 +967,7 @@ namespace Jurassic.Library
 
             // This method supports arrays of length up to 2^32-1.
             if (uint.MaxValue - arrayLength < items.Length)
-                throw new JavaScriptException(thisObj.Engine, ErrorType.RangeError, "Invalid array length");
+                throw new JavaScriptException(ErrorType.RangeError, "Invalid array length");
 
             // Update the length property.
             SetLength(thisObj, arrayLength + (uint)items.Length);
@@ -952,7 +978,7 @@ namespace Jurassic.Library
 
             // Prepend the new items.
             for (uint i = 0; i < items.Length; i++)
-                thisObj.SetPropertyValue(i, items[i], true);
+                thisObj.SetPropertyValue(i, items[i], thisObj, throwOnError: true);
 
             // Return the new length of the array.
             return arrayLength + (uint)items.Length;
@@ -971,7 +997,7 @@ namespace Jurassic.Library
         {
             var result = new List<object>((int)GetLength(thisObj));
             FlattenTo(result, thisObj, null, null, depth);
-            return thisObj.Engine.Array.New(result.ToArray());
+            return new ArrayInstanceAdapter(thisObj).ConstructArray(result.ToArray());
         }
 
         /// <summary>
@@ -988,7 +1014,7 @@ namespace Jurassic.Library
         {
             var result = new List<object>((int)GetLength(thisObj));
             FlattenTo(result, thisObj, callback, thisArg, depth: 1);
-            return thisObj.Engine.Array.New(result.ToArray());
+            return new ArrayInstanceAdapter(thisObj).ConstructArray(result.ToArray());
         }
 
 
@@ -1017,8 +1043,8 @@ namespace Jurassic.Library
             /// <returns> The value at the given index. </returns>
             public override object this[int index]
             {
-                get { return WrappedInstance[index]; }
-                set { WrappedInstance[index] = value; }
+                get { return WrappedInstance.GetPropertyValue((uint)index); }
+                set { WrappedInstance.SetPropertyValue((uint)index, value, WrappedInstance, throwOnError: false); }
             }
 
             /// <summary>
@@ -1031,12 +1057,45 @@ namespace Jurassic.Library
             }
 
             /// <summary>
+            /// Indicates whether the array index exists (has a value).
+            /// </summary>
+            /// <param name="index"> The index to check. </param>
+            /// <returns> <c>true</c> if the index exists, <c>false</c> otherwise. </returns>
+            public override bool HasProperty(int index)
+            {
+                return WrappedInstance.HasProperty(index.ToString());
+            }
+
+            /// <summary>
             /// Creates a new array of the same type as this one.
             /// </summary>
             /// <param name="values"> The values in the new array. </param>
             /// <returns> A new array object. </returns>
             public override ObjectInstance ConstructArray(object[] values)
             {
+                if (WrappedInstance is ArrayInstance wrappedArrayInstance)
+                {
+                    var constructor = wrappedArrayInstance["constructor"];
+                    if (constructor is ObjectInstance constructorObjectInstance && !(constructor is FunctionInstance))
+                    {
+                        constructor = constructorObjectInstance[Symbol.Species];
+                        if (constructor == Null.Value)
+                            constructor = Undefined.Value;
+                    }
+                    if (constructor != Undefined.Value && constructor != Engine.Array)
+                    {
+                        if (constructor is FunctionInstance constructorFunction)
+                        {
+                            var result = constructorFunction.ConstructLateBound(constructorFunction, values.Length);
+                            for (int i = 0; i < values.Length; i++)
+                                if (values[i] != null)
+                                    result[i] = values[i];
+                            return result;
+                        }
+                        else
+                            throw new JavaScriptException(ErrorType.TypeError, "object.constructor[Symbol.species] is not a constructor.");
+                    }
+                }
                 return Engine.Array.New(values);
             }
 
@@ -1482,7 +1541,7 @@ namespace Jurassic.Library
             if (thisObj is ArrayInstance)
                 ((ArrayInstance)thisObj).Length = value;
             else
-                thisObj.SetPropertyValue("length", (double)value, true);
+                thisObj.SetPropertyValue("length", (double)value, thisObj, throwOnError: true);
         }
 
         /// <summary>
@@ -1513,7 +1572,7 @@ namespace Jurassic.Library
             for (int i = 0; i < GetLength(array); i++)
             {
                 // Get the value of the array element.
-                object elementValue = array[i];
+                object elementValue = array.GetPropertyValue((uint)i);
 
                 // Ignore missing elements.
                 if (elementValue != null)
@@ -1529,6 +1588,45 @@ namespace Jurassic.Library
                         result.Add(elementValue);
                 }
             }
+        }
+
+        /// <summary>
+        /// Indicates whether the given object should be concatenated as if it was an array.
+        /// </summary>
+        /// <param name="engine"> The script engine. </param>
+        /// <param name="o"> The value to check. </param>
+        /// <returns> <c>true</c> if the value should be concatenated as if it was an array,
+        /// <c>false</c> otherwise. </returns>
+        private static bool IsConcatSpreadable(ScriptEngine engine, object o)
+        {
+            if (o is ObjectInstance objectInstance)
+            {
+                var result = objectInstance[Symbol.IsConcatSpreadable];
+                if (result != Undefined.Value)
+                    return TypeConverter.ToBoolean(result);
+                return objectInstance is ArrayInstance;
+            }
+            else
+                return false;
+        }
+
+        /// <summary>
+        /// Enumerates the list of array-like properties (with numeric names).
+        /// </summary>
+        /// <param name="engine"> The script engine. </param>
+        /// <param name="obj"> The object to enumerate properties of. </param>
+        /// <param name="length"> The value of the length property. No indices are returned that
+        /// are higher or equal to this value. </param>
+        /// <returns> Enumerates the list of array-like properties (with numeric names). </returns>
+        private static IEnumerable<KeyValuePair<uint, object>> EnumerateArrayLikeValues(ScriptEngine engine, ObjectInstance obj, uint length)
+        {
+            foreach (var property in TypeConverter.ToObject(engine, obj).Properties)
+                if (property.Key is string key)
+                {
+                    uint arrayIndex = ArrayInstance.ParseArrayIndex(key);
+                    if (arrayIndex != uint.MaxValue && arrayIndex < length)
+                        yield return new KeyValuePair<uint, object>(arrayIndex, property.Value);
+                }
         }
     }
 }

@@ -25,6 +25,10 @@ namespace UnitTests
             Assert.AreEqual("SyntaxError", EvaluateExceptionType("f = new Function('a,c d,b', 'return a+b')"));
             Assert.AreEqual("SyntaxError", EvaluateExceptionType("f = new Function('a,c d,b', 'return a+b }')"));
 
+            // Variables declared in the function body should NOT affect the global scope.
+            Assert.AreEqual(5, Evaluate("a = 5; f = new Function('a', 'b', 'return a+b'); f(1, 3); a"));
+            Assert.AreEqual(5, Evaluate("d = 5; f = new Function('a', 'b', 'var d = 10; return a+b'); f(1, 3); d"));
+
             // Call
             Assert.AreEqual(4, Evaluate("f = Function('a', 'b', 'return a+b'); f(1, 3)"));
 
@@ -103,19 +107,6 @@ namespace UnitTests
             Assert.AreEqual("get f", Evaluate("x = { get f() { } }; Object.getOwnPropertyDescriptor(x, 'f').get.name"));
             Assert.AreEqual("set f", Evaluate("x = { set f(val) { } }; Object.getOwnPropertyDescriptor(x, 'f').set.name"));
             Assert.AreEqual("anonymous", Evaluate("new Function('').name"));
-        }
-
-        [TestMethod]
-        public void displayName()
-        {
-            Assert.AreEqual(Undefined.Value, Evaluate("function f() { } f.displayName"));
-            Assert.AreEqual(Undefined.Value, Evaluate("f = function g() { }; f.displayName"));
-            Assert.AreEqual("f", Evaluate("f = function() { }; f.displayName"));
-            Assert.AreEqual(Undefined.Value, Evaluate("x = { y: function f() { } }; x.y.displayName"));
-            Assert.AreEqual("y", Evaluate("x = { y: function() { } }; x.y.displayName"));
-            Assert.AreEqual("get f", Evaluate("x = { get f() { } }; Object.getOwnPropertyDescriptor(x, 'f').get.displayName"));
-            Assert.AreEqual("set f", Evaluate("x = { set f(value) { } }; Object.getOwnPropertyDescriptor(x, 'f').set.displayName"));
-            Assert.AreEqual(Undefined.Value, Evaluate("new Function('').displayName"));
         }
 
         [TestMethod]

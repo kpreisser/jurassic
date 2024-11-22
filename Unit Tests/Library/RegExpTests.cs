@@ -25,6 +25,11 @@ namespace UnitTests
 
             // species
             Assert.AreEqual(true, Evaluate("RegExp[Symbol.species] === RegExp"));
+
+            // lastIndex is the only property defined on the instance itself.
+            Assert.AreEqual("lastIndex", Evaluate("Reflect.ownKeys(/[a-z]+/).toString()"));
+            Assert.AreEqual(@"{""value"":0,""writable"":true,""enumerable"":false,""configurable"":false}",
+                Evaluate("JSON.stringify(Reflect.getOwnPropertyDescriptor(/[a-z]+/, 'lastIndex'))"));
         }
 
         [TestMethod]
@@ -66,6 +71,12 @@ namespace UnitTests
             Assert.AreEqual(true, Evaluate("x.ignoreCase"));
             Assert.AreEqual(false, Evaluate("x.multiline"));
             Assert.AreEqual(0, Evaluate("x.lastIndex"));
+
+            // RegExp(...) returns the instance passed in if constructor is RegExp and [Symbol.match] is true.
+            Assert.AreEqual(true, Evaluate("var foo = { constructor: RegExp, [Symbol.match]: true }; RegExp(foo) === foo"));
+            Assert.AreEqual(false, Evaluate("var foo = { constructor: String, [Symbol.match]: false }; RegExp(foo) === foo"));
+            Assert.AreEqual(false, Evaluate("var foo = { constructor: RegExp }; RegExp(foo) === foo"));
+            Assert.AreEqual(false, Evaluate("var foo = { [Symbol.match]: true }; RegExp(foo) === foo"));
         }
 
         [TestMethod]
@@ -210,7 +221,7 @@ namespace UnitTests
             // compile(pattern)
             Evaluate("var x = new RegExp('abc', 'g')");
             Evaluate("x.lastIndex = 1;");
-            Evaluate("x.compile('cde')");
+            Assert.AreEqual(true, Evaluate("x.compile('cde') === x"));
             Assert.AreEqual("cde", Evaluate("x.source"));
             Assert.AreEqual(false, Evaluate("x.global"));
             Assert.AreEqual(false, Evaluate("x.ignoreCase"));
@@ -220,12 +231,15 @@ namespace UnitTests
             // compile(pattern, flags)
             Evaluate("var x = new RegExp('abc', 'g')");
             Evaluate("x.lastIndex = 1;");
-            Evaluate("x.compile('cde', 'i')");
+            Assert.AreEqual(true, Evaluate("x.compile('cde', 'i') === x"));
             Assert.AreEqual("cde", Evaluate("x.source"));
             Assert.AreEqual(false, Evaluate("x.global"));
             Assert.AreEqual(true, Evaluate("x.ignoreCase"));
             Assert.AreEqual(false, Evaluate("x.multiline"));
             Assert.AreEqual(0, Evaluate("x.lastIndex"));
+
+            // compile() should not add any properties to the object.
+            Assert.AreEqual("lastIndex", Evaluate("Reflect.ownKeys(x).toString()"));
         }
 
         [TestMethod]
@@ -429,6 +443,20 @@ namespace UnitTests
             Assert.AreEqual("undefined", Evaluate(@"'y'.replace(/(x)?\1y/, function($0, $1){ return String($1); })"));
             Assert.AreEqual("undefined", Evaluate(@"'y'.replace(/(x)?y/, function($0, $1){ return String($1); })"));
             Assert.AreEqual("undefined", Evaluate(@"'y'.replace(/(x)?y/, function($0, $1){ return $1; })"));
+        }
+
+        [TestMethod]
+        public void toString()
+        {
+            Assert.AreEqual("/abc/g", Evaluate(@"/abc/g.toString()"));
+
+            // toString() is generic.
+            Assert.AreEqual("/abc/g", Evaluate("RegExp.prototype.toString.apply({ source: 'abc', flags: 'g' })"));
+            Assert.AreEqual("/abc/undefined", Evaluate("RegExp.prototype.toString.apply({ source: 'abc' })"));
+            Assert.AreEqual("/undefined/undefined", Evaluate("RegExp.prototype.toString.apply({ })"));
+
+            // length
+            Assert.AreEqual(0, Evaluate("RegExp.prototype.toString.length"));
         }
     }
 }

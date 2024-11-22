@@ -1,5 +1,5 @@
 ﻿using System;
-using ErrorType = Jurassic.Library.ErrorType;
+using Jurassic.Library;
 
 namespace Jurassic.Compiler
 {
@@ -45,10 +45,6 @@ namespace Jurassic.Compiler
         /// <param name="line"> The line number of the statement that is currently executing. </param>
         public static void Convert(ILGenerator generator, PrimitiveType fromType, PrimitiveType toType, string path, string function, int line)
         {
-            // Check that a conversion is actually necessary.
-            if (fromType == toType)
-                return;
-
             switch (toType)
             {
                 case PrimitiveType.Any:
@@ -197,6 +193,8 @@ namespace Jurassic.Compiler
                     break;
 
                 case PrimitiveType.Number:
+                    // HACK ALERT: per the spec, this should actually return a double.
+
                     // Converting from a number produces the following:
                     // Any number between -2147483648 and +2147483647 -> itself
                     // Any number smaller than -2147483648 -> -2147483648
@@ -259,8 +257,15 @@ namespace Jurassic.Compiler
         public static void ToInt32(ILGenerator generator, PrimitiveType fromType)
         {
             // Check that a conversion is actually necessary.
-            if (fromType == PrimitiveType.Int32 || fromType == PrimitiveType.UInt32 || fromType == PrimitiveType.Bool)
+            if (fromType == PrimitiveType.Int32 || fromType == PrimitiveType.UInt32)
                 return;
+            if (fromType == PrimitiveType.Bool)
+            {
+                // ToInt32(false) = 0, ToInt32(true) = 1, this corresponds exactly with the .NET
+                // representation of booleans.
+                generator.ReinterpretCast(typeof(int));
+                return;
+            }
 
             switch (fromType)
             {
@@ -272,8 +277,41 @@ namespace Jurassic.Compiler
                     break;
 
                 case PrimitiveType.Number:
-                    // Converting from a number produces the number mod 4294967296.  NaN produces 0.
-                    generator.ConvertToUnsignedInteger();
+                    var value = generator.DeclareVariable(typeof(double), "value");
+                    generator.StoreVariable(value);
+
+                    // value < long.MinValue
+                    generator.LoadVariable(value);
+                    generator.LoadDouble(long.MinValue);
+                    generator.CompareLessThan();
+                    
+                    // value > long.MaxValue
+                    generator.LoadVariable(value);
+                    generator.LoadDouble(long.MaxValue);
+                    generator.CompareGreaterThan();
+                    
+                    // value < long.MinValue || value > long.MaxValue
+                    generator.BitwiseOr();
+                    
+                    // if (value < long.MinValue || value > long.MaxValue)
+                    var falseClause = generator.CreateLabel();
+                    var endOfIf = generator.CreateLabel();
+                    generator.BranchIfFalse(falseClause);
+
+                    // TypeConverter.ToInt32(value)
+                    generator.LoadVariable(value);
+                    generator.Box(typeof(double));
+                    generator.Call(ReflectionHelpers.TypeConverter_ToInt32);
+
+                    // else
+                    generator.Branch(endOfIf);
+                    
+                    // (int)(long)value
+                    generator.DefineLabelPosition(falseClause);
+                    generator.LoadVariable(value);
+                    generator.ConvertToInt64();
+                    generator.ConvertToInteger();
+                    generator.DefineLabelPosition(endOfIf);
                     break;
 
                 case PrimitiveType.String:
@@ -298,6 +336,7 @@ namespace Jurassic.Compiler
         public static void ToUInt32(ILGenerator generator, PrimitiveType fromType)
         {
             ToInt32(generator, fromType);
+            generator.ConvertToUnsignedInteger();
         }
 
         /// <summary>
@@ -478,18 +517,23 @@ namespace Jurassic.Compiler
         {
             // Check that a conversion is actually necessary.
             if (fromType == PrimitiveType.Object)
+            {
+                generator.ReinterpretCast(typeof(ObjectInstance));
                 return;
+            }
 
             switch (fromType)
             {
                 case PrimitiveType.Undefined:
                     // Converting from undefined always throws an exception.
                     EmitHelpers.EmitThrow(generator, ErrorType.TypeError, "Undefined cannot be converted to an object", path, function, line);
+                    generator.ReinterpretCast(typeof(ObjectInstance));
                     break;
 
                 case PrimitiveType.Null:
                     // Converting from null always throws an exception.
                     EmitHelpers.EmitThrow(generator, ErrorType.TypeError, "Null cannot be converted to an object", path, function, line);
+                    generator.ReinterpretCast(typeof(ObjectInstance));
                     break;
 
                 case PrimitiveType.Bool:
@@ -543,7 +587,7 @@ namespace Jurassic.Compiler
                 case PrimitiveType.Any:
                 case PrimitiveType.Object:
                     // Otherwise, fall back to calling TypeConverter.ToPrimitive()
-                    generator.LoadInt32((int)preferredType);
+                    generator.LoadEnumValue(preferredType);
                     generator.Call(ReflectionHelpers.TypeConverter_ToPrimitive);
                     break;
 
@@ -562,6 +606,8 @@ namespace Jurassic.Compiler
         {
             if (PrimitiveTypeUtilities.IsValueType(fromType))
                 generator.Box(fromType);
+            else
+                generator.ReinterpretCast(typeof(object));
         }
 
         /// <summary>

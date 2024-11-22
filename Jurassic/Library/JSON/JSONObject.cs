@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 
 namespace Jurassic.Library
 {
     /// <summary>
     /// Represents the built-in JSON object.
     /// </summary>
-    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
-    [DebuggerTypeProxy(typeof(ObjectInstanceDebugView))]
     public partial class JSONObject : ObjectInstance
     {
 
@@ -23,7 +20,7 @@ namespace Jurassic.Library
             : base(prototype)
         {
             var properties = GetDeclarativeProperties(Engine);
-            properties.Add(new PropertyNameAndValue(Engine.Symbol.ToStringTag, "JSON", PropertyAttributes.Configurable));
+            properties.Add(new PropertyNameAndValue(Symbol.ToStringTag, "JSON", PropertyAttributes.Configurable));
             InitializeProperties(properties);
         }
 
@@ -58,19 +55,18 @@ namespace Jurassic.Library
         /// that is used for indentation. </param>
         /// <returns> The JSON string representing the value. </returns>
         [JSInternalFunction(Name = "stringify", Flags = JSFunctionFlags.HasEngineParameter)]
-        public static string Stringify(ScriptEngine engine, object value, object replacer = null, object spacer = null)
+        public static object Stringify(ScriptEngine engine, object value, object replacer = null, object spacer = null)
         {
             var serializer = new JSONSerializer(engine);
 
             // The replacer object can be either a function or an array.
             serializer.ReplacerFunction = replacer as FunctionInstance;
-            if (replacer is ArrayInstance)
+            if (replacer is ObjectInstance replaceObjectInstance && ArrayConstructor.IsArray(replacer))
             {
-                var replacerArray = (ArrayInstance)replacer;
                 var serializableProperties = new HashSet<string>(StringComparer.Ordinal);
-                foreach (object elementValue in replacerArray.ElementValues)
+                foreach (object elementValue in TypeUtilities.CreateListFromArrayLike(replaceObjectInstance))
                 {
-                    if (elementValue is string || elementValue is int || elementValue is double || elementValue is StringInstance || elementValue is NumberInstance)
+                    if (elementValue is string || elementValue is int || elementValue is uint || elementValue is double || elementValue is StringInstance || elementValue is NumberInstance)
                         serializableProperties.Add(TypeConverter.ToString(elementValue));
                 }
                 serializer.SerializableProperties = serializableProperties;
@@ -83,23 +79,13 @@ namespace Jurassic.Library
                 spacer = ((StringInstance)spacer).Value;
             if (spacer is double)
                 serializer.Indentation = new string(' ', Math.Max(Math.Min(TypeConverter.ToInteger((double)spacer), 10), 0));
-            else if (spacer is int)
-                serializer.Indentation = new string(' ', Math.Max(Math.Min(TypeConverter.ToInteger((int)spacer), 10), 0));
+            else if (spacer is int || spacer is uint)
+                serializer.Indentation = new string(' ', Math.Max(Math.Min(TypeConverter.ToInteger(spacer), 10), 0));
             else if (spacer is string)
                 serializer.Indentation = ((string)spacer).Substring(0, Math.Min(((string)spacer).Length, 10));
 
             // Serialize the value.
-            return serializer.Serialize(value);
-        }
-
-
-        /// <summary>
-        /// Gets type, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayType
-        {
-            get { return "JSON Object"; }
+            return serializer.Serialize(value) ?? (object)Undefined.Value;
         }
     }
 }

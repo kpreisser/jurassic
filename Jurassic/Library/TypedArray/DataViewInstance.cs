@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 
 namespace Jurassic.Library
 {
@@ -7,8 +6,6 @@ namespace Jurassic.Library
     /// The DataView view provides a low-level interface for reading and writing multiple number
     /// types in an ArrayBuffer irrespective of the platform's endianness.
     /// </summary>
-    [DebuggerDisplay("{DebuggerDisplayValue,nq}", Type = "{DebuggerDisplayType,nq}")]
-    [DebuggerTypeProxy(typeof(DataViewInstanceDebugView))]
     public partial class DataViewInstance : ObjectInstance
     {
         private ArrayBufferInstance buffer;
@@ -48,7 +45,7 @@ namespace Jurassic.Library
             var result = engine.Object.Construct();
             var properties = GetDeclarativeProperties(engine);
             properties.Add(new PropertyNameAndValue("constructor", constructor, PropertyAttributes.NonEnumerable));
-            properties.Add(new PropertyNameAndValue(engine.Symbol.ToStringTag, "DataView", PropertyAttributes.Configurable));
+            properties.Add(new PropertyNameAndValue(Symbol.ToStringTag, "DataView", PropertyAttributes.Configurable));
             result.InitializeProperties(properties);
             return result;
         }
@@ -138,7 +135,7 @@ namespace Jurassic.Library
         public unsafe int GetInt16(int byteOffset, bool littleEndian)
         {
             if (byteOffset < 0 || byteOffset > this.byteLength - 2)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
+                throw new JavaScriptException(ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
             fixed (byte* ptr = &buffer.Buffer[this.byteOffset + byteOffset])
             {
                 if (littleEndian)
@@ -166,7 +163,7 @@ namespace Jurassic.Library
         public unsafe int GetInt32(int byteOffset, bool littleEndian)
         {
             if (byteOffset < 0 || byteOffset > this.byteLength - 4)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
+                throw new JavaScriptException(ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
             fixed (byte* ptr = &buffer.Buffer[this.byteOffset + byteOffset])
             {
                 if (littleEndian)
@@ -193,7 +190,7 @@ namespace Jurassic.Library
         public unsafe long GetInt64(int byteOffset, bool littleEndian)
         {
             if (byteOffset < 0 || byteOffset > this.byteLength - 8)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
+                throw new JavaScriptException(ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
             fixed (byte* ptr = &buffer.Buffer[this.byteOffset + byteOffset])
             {
                 if (littleEndian)
@@ -223,7 +220,7 @@ namespace Jurassic.Library
         public int GetInt8(int byteOffset)
         {
             if (byteOffset < 0 || byteOffset > this.byteLength - 1)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
+                throw new JavaScriptException(ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
             return (sbyte)buffer.Buffer[this.byteOffset + byteOffset];
         }
 
@@ -271,7 +268,7 @@ namespace Jurassic.Library
         public int GetUint8(int byteOffset)
         {
             if (byteOffset < 0 || byteOffset > this.byteLength - 1)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
+                throw new JavaScriptException(ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
             return buffer.Buffer[this.byteOffset + byteOffset];
         }
 
@@ -346,7 +343,7 @@ namespace Jurassic.Library
         public void SetInt8(int byteOffset, object value)
         {
             if (byteOffset < 0 || byteOffset > this.byteLength - 1)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
+                throw new JavaScriptException(ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
             buffer.Buffer[this.byteOffset + byteOffset] = (byte)TypeConverter.ToInt8(value);
         }
 
@@ -391,7 +388,7 @@ namespace Jurassic.Library
         public void SetUint8(int byteOffset, object value)
         {
             if (byteOffset < 0 || byteOffset > this.byteLength - 1)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
+                throw new JavaScriptException(ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
             buffer.Buffer[this.byteOffset + byteOffset] = TypeConverter.ToUint8(value);
         }
 
@@ -412,7 +409,7 @@ namespace Jurassic.Library
         private void SetCore(int byteOffset, byte[] bytes, bool littleEndian)
         {
             if (byteOffset < 0 || byteOffset > this.byteLength - bytes.Length)
-                throw new JavaScriptException(Engine, ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
+                throw new JavaScriptException(ErrorType.RangeError, "Offset is outside the bounds of the DataView.");
             if (littleEndian)
             {
                 for (int i = 0; i < bytes.Length; i++)
@@ -423,39 +420,6 @@ namespace Jurassic.Library
                 for (int i = 0; i < bytes.Length; i++)
                     buffer.Buffer[this.byteOffset + byteOffset + bytes.Length - 1 - i] = bytes[i];
             }
-        }
-
-
-
-        //     .NET PROPERTIES
-        //_________________________________________________________________________________________
-
-
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayValue
-        {
-            get { return "{}"; }
-        }
-
-        /// <summary>
-        /// Gets value, that will be displayed in debugger watch window when this object is part of array, map, etc.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayShortValue
-        {
-            get { return this.DebuggerDisplayType; }
-        }
-
-        /// <summary>
-        /// Gets type, that will be displayed in debugger watch window.
-        /// </summary>
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public override string DebuggerDisplayType
-        {
-            get { return string.Format("DataView({0})", this.byteLength); }
         }
     }
 }

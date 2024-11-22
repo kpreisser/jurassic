@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using Jurassic.Library;
 
 namespace Jurassic
@@ -90,6 +88,8 @@ namespace Jurassic
                 return ((string)value).Length > 0;
             if (value is ConcatenatedString)
                 return ((ConcatenatedString)value).Length > 0;
+            if (value is Symbol)
+                return true;
             if (value is ObjectInstance)
                 return true;
             throw new ArgumentException(string.Format("Cannot convert object of type '{0}' to a boolean.", value.GetType()), nameof(value));
@@ -118,8 +118,8 @@ namespace Jurassic
                 return NumberParser.CoerceToNumber((string)value);
             if (value is ConcatenatedString)
                 return NumberParser.CoerceToNumber(value.ToString());
-            if (value is SymbolInstance)
-                throw new JavaScriptException(((SymbolInstance)value).Engine, ErrorType.TypeError, "Cannot convert a Symbol value to a number.");
+            if (value is Symbol)
+                throw new JavaScriptException(ErrorType.TypeError, "Cannot convert a Symbol value to a number.");
             if (value is ObjectInstance)
                 return ToNumber(ToPrimitive(value, PrimitiveTypeHint.Number));
             throw new ArgumentException(string.Format("Cannot convert object of type '{0}' to a number.", value.GetType()), nameof(value));
@@ -140,8 +140,19 @@ namespace Jurassic
         /// <returns> A primitive string value. </returns>
         public static string ToString(object value)
         {
+            return ToString(value, "undefined");
+        }
+
+        /// <summary>
+        /// Converts any JavaScript value to a primitive string value.
+        /// </summary>
+        /// <param name="value"> The value to convert. </param>
+        /// <param name="defaultValue"> The value to return if the input is undefined. </param>
+        /// <returns> A primitive string value. </returns>
+        internal static string ToString(object value, string defaultValue)
+        {
             if (value == null || value == Undefined.Value)
-                return "undefined";
+                return defaultValue;
             if (value == Null.Value)
                 return "null";
             if (value is bool)
@@ -171,8 +182,8 @@ namespace Jurassic
                 return (string)value;
             if (value is ConcatenatedString)
                 return value.ToString();
-            if (value is SymbolInstance)
-                throw new JavaScriptException(((SymbolInstance)value).Engine, ErrorType.TypeError, "Cannot convert a Symbol value to a string.");
+            if (value is Symbol)
+                throw new JavaScriptException(ErrorType.TypeError, "Cannot convert a Symbol value to a string.");
             if (value is ObjectInstance)
                 return ToString(ToPrimitive(value, PrimitiveTypeHint.String));
             throw new ArgumentException(string.Format("Cannot convert object of type '{0}' to a string.", value.GetType()), nameof(value));
@@ -217,9 +228,9 @@ namespace Jurassic
             if (value is ObjectInstance)
                 return (ObjectInstance)value;
             if (value == null || value == Undefined.Value)
-                throw new JavaScriptException(engine, ErrorType.TypeError, "undefined cannot be converted to an object", lineNumber, sourcePath, functionName);
+                throw new JavaScriptException(ErrorType.TypeError, "undefined cannot be converted to an object", lineNumber, sourcePath, functionName);
             if (value == Null.Value)
-                throw new JavaScriptException(engine, ErrorType.TypeError, "null cannot be converted to an object", lineNumber, sourcePath, functionName);
+                throw new JavaScriptException(ErrorType.TypeError, "null cannot be converted to an object", lineNumber, sourcePath, functionName);
 
             ObjectInstance result;
             if (value is bool)
@@ -234,10 +245,11 @@ namespace Jurassic
                 result = engine.String.Construct((string)value);
             else if (value is ConcatenatedString)
                 result = engine.String.Construct(value.ToString());
+            else if (value is Symbol symbolValue)
+                result = new SymbolInstance(engine.Symbol.InstancePrototype, symbolValue);
             else
                 throw new ArgumentException(string.Format("Cannot convert object of type '{0}' to an object.", value.GetType()), nameof(value));
 
-            result.IsExtensible = false;
             return result;
         }
 
@@ -251,7 +263,7 @@ namespace Jurassic
         {
             if (value is T)
                 return (T)value;
-            throw new JavaScriptException(engine, ErrorType.TypeError, "Incorrect argument type.");
+            throw new JavaScriptException(ErrorType.TypeError, "Incorrect argument type.");
         }
 
         /// <summary>
@@ -276,7 +288,7 @@ namespace Jurassic
         /// <returns> A property key value. </returns>
         public static object ToPropertyKey(object value)
         {
-            if (value is SymbolInstance)
+            if (value is Symbol)
                 return value;
             return ToString(value);
         }
@@ -288,15 +300,17 @@ namespace Jurassic
         /// <returns> An integer value. </returns>
         public static int ToInteger(object value)
         {
+            // HACK ALERT: per the spec, this should actually return a double.
+
             if (value == null || value is Undefined)
                 return 0;
             double num = ToNumber(value);
             if (num > 2147483647.0)
                 return 2147483647;
-            #pragma warning disable 1718
+#pragma warning disable 1718
             if (num != num)
                 return 0;
-            #pragma warning restore 1718
+#pragma warning restore 1718
             return (int)num;
         }
 
@@ -309,7 +323,14 @@ namespace Jurassic
         {
             if (value is int)
                 return (int)value;
-            return (int)(uint)ToNumber(value);
+            double num = ToNumber(value);
+            if (num < long.MinValue || num > long.MaxValue)
+            {
+                if (double.IsNegativeInfinity(num) || double.IsPositiveInfinity(num))
+                    return 0;
+                return (int)Math.IEEERemainder(num, 4294967296.0);
+            }
+            return (int)(long)num;
         }
 
         /// <summary>
@@ -321,7 +342,7 @@ namespace Jurassic
         {
             if (value is uint)
                 return (uint)value;
-            return (uint)ToNumber(value);
+            return (uint)ToInt32(value);
         }
 
         /// <summary>
@@ -331,7 +352,7 @@ namespace Jurassic
         /// <returns> A signed 16-bit integer value. </returns>
         public static short ToInt16(object value)
         {
-            return (short)(uint)ToNumber(value);
+            return (short)ToInt32(value);
         }
 
         /// <summary>
@@ -341,7 +362,7 @@ namespace Jurassic
         /// <returns> An unsigned 16-bit integer value. </returns>
         public static ushort ToUint16(object value)
         {
-            return (ushort)(uint)ToNumber(value);
+            return (ushort)ToInt32(value);
         }
 
         /// <summary>
@@ -351,7 +372,7 @@ namespace Jurassic
         /// <returns> A signed 8-bit integer value. </returns>
         public static sbyte ToInt8(object value)
         {
-            return (sbyte)(uint)ToNumber(value);
+            return (sbyte)ToInt32(value);
         }
 
         /// <summary>
@@ -361,7 +382,7 @@ namespace Jurassic
         /// <returns> An unsigned 8-bit integer value. </returns>
         public static byte ToUint8(object value)
         {
-            return (byte)(uint)ToNumber(value);
+            return (byte)ToInt32(value);
         }
 
         /// <summary>

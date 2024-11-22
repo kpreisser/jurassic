@@ -19,14 +19,15 @@ namespace Jurassic.Library
         /// </summary>
         /// <param name="prototype"> The next object in the prototype chain. </param>
         /// <param name="type"> Defines the element type and behaviour of the typed array. </param>
-        internal TypedArrayConstructor(ObjectInstance prototype, TypedArrayType type)
+        /// <param name="declarativeProperties"> The result of calling <see cref="TypedArrayInstance.GetDeclarativeProperties(ScriptEngine)"/>. </param>
+        internal TypedArrayConstructor(ObjectInstance prototype, TypedArrayType type, List<PropertyNameAndValue> declarativeProperties)
             : base(prototype, __STUB__Construct, __STUB__Call)
         {
             this.type = type;
 
             // Initialize the constructor properties.
             var properties = GetDeclarativeProperties(Engine);
-            InitializeConstructorProperties(properties, type.ToString(), 3, TypedArrayInstance.CreatePrototype(Engine, this));
+            InitializeConstructorProperties(properties, type.ToString(), 3, TypedArrayInstance.CreatePrototype(Engine, this, declarativeProperties));
             properties.Add(new PropertyNameAndValue("BYTES_PER_ELEMENT", BytesPerElement, PropertyAttributes.Sealed));
             InitializeProperties(properties);
         }
@@ -113,7 +114,7 @@ namespace Jurassic.Library
         [JSCallFunction]
         public object Call()
         {
-            throw new JavaScriptException(Engine, ErrorType.TypeError, $"Constructor {this["name"]} requires 'new'");
+            throw new JavaScriptException(ErrorType.TypeError, $"Constructor {this["name"]} requires 'new'");
         }
 
         /// <summary>
@@ -167,20 +168,20 @@ namespace Jurassic.Library
                 if (length == null)
                 {
                     if (byteOffset < 0)
-                        throw new JavaScriptException(Engine, ErrorType.RangeError, "Invalid typed array offset");
+                        throw new JavaScriptException(ErrorType.RangeError, "Invalid typed array offset");
                     if ((byteOffset % BytesPerElement) != 0)
-                        throw new JavaScriptException(Engine, ErrorType.RangeError, $"Start offset of {this.type} should be a multiple of {BytesPerElement}");
+                        throw new JavaScriptException(ErrorType.RangeError, $"Start offset of {this.type} should be a multiple of {BytesPerElement}");
                     if ((buffer.ByteLength % BytesPerElement) != 0)
-                        throw new JavaScriptException(Engine, ErrorType.RangeError, $"Byte length of {this.type} should be a multiple of {BytesPerElement}");
+                        throw new JavaScriptException(ErrorType.RangeError, $"Byte length of {this.type} should be a multiple of {BytesPerElement}");
                     actualLength = (buffer.ByteLength - byteOffset) / bytesPerElement;
                     if (actualLength < 0)
-                        throw new JavaScriptException(Engine, ErrorType.RangeError, "Start offset is too large");
+                        throw new JavaScriptException(ErrorType.RangeError, "Start offset is too large");
                 }
                 else
                 {
                     actualLength = length.Value;
                     if (byteOffset + actualLength * bytesPerElement > buffer.ByteLength)
-                        throw new JavaScriptException(Engine, ErrorType.RangeError, "Invalid typed array length");
+                        throw new JavaScriptException(ErrorType.RangeError, "Invalid typed array length");
                 }
                 return new TypedArrayInstance(this.InstancePrototype, this.type, buffer, byteOffset, actualLength);
             }
@@ -193,7 +194,7 @@ namespace Jurassic.Library
             {
                 // new %TypedArray%(length);
                 if (TypeUtilities.IsUndefined(arg))
-                    throw new JavaScriptException(Engine, ErrorType.TypeError, "Argument cannot be undefined");
+                    throw new JavaScriptException(ErrorType.TypeError, "Argument cannot be undefined");
                 int argLength = TypeConverter.ToInteger(arg);
                 return new TypedArrayInstance(this.InstancePrototype, this.type, Engine.ArrayBuffer.Construct(argLength * BytesPerElement), 0, argLength);
             }
@@ -233,7 +234,7 @@ namespace Jurassic.Library
                 for (int i = 0; i < values.Count; i++)
                 {
                     if (mapFn != null)
-                        result[i] = mapFn.Call(thisArg, values[i], i);
+                        result[i] = mapFn.CallFromNative("from", thisArg, values[i], i);
                     else
                         result[i] = values[i];
                 }
@@ -247,7 +248,7 @@ namespace Jurassic.Library
                 for (int i = 0; i < length; i++)
                 {
                     if (mapFn != null)
-                        result[i] = mapFn.Call(thisArg, items[i], i);
+                        result[i] = mapFn.CallFromNative("from", thisArg, items[i], i);
                     else
                         result[i] = items[i];
                 }
