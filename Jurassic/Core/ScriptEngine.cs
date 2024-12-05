@@ -978,7 +978,7 @@ namespace Jurassic
         /// Creates a CompilerOptions instance using the script engine properties.
         /// </summary>
         /// <returns> A populated CompilerOptions instance. </returns>
-        private CompilerOptions CreateOptions()
+        public CompilerOptions CreateOptions()
         {
             return new CompilerOptions()
             {
