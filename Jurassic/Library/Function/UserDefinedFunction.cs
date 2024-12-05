@@ -242,7 +242,8 @@ namespace Jurassic.Library
                 throw new StackOverflowException("The allowed recursion depth of the script engine has been exceeded.");
 
             currentRecursionDepth++;
-            try {
+            try
+            {
                 var context = ExecutionContext.CreateFunctionContext(
                     engine: this.Engine,
                     parentScope: this.ParentScope,
@@ -252,7 +253,8 @@ namespace Jurassic.Library
                 // Call the function.
                 return this.body(context, argumentValues) ?? Undefined.Value;
             }
-            finally {
+            finally
+            {
                 currentRecursionDepth--;
             }
         }
@@ -265,25 +267,36 @@ namespace Jurassic.Library
         /// <returns> The object that was created. </returns>
         public override ObjectInstance ConstructLateBound(FunctionInstance newTarget, params object[] argumentValues)
         {
-            // Create a new object and set the prototype to the instance prototype of the function.
-            var newObject = ObjectInstance.CreateRawObject(newTarget.InstancePrototype);
+            // Check the allowed recursion depth.
+            if (this.Engine.RecursionDepthLimit > 0 && currentRecursionDepth >= this.Engine.RecursionDepthLimit)
+                throw new StackOverflowException("The allowed recursion depth of the script engine has been exceeded.");
 
-            // Run the function, with the new object as the "this" keyword.
-            var context = ExecutionContext.CreateConstructContext(
-                engine: this.Engine,
-                parentScope: this.ParentScope,
-                thisValue: newObject,
-                executingFunction: this,
-                newTarget: newTarget,
-                functionContainer: null);
-            var result = this.body(context, argumentValues);
+            currentRecursionDepth++;
+            try
+            {
+                // Create a new object and set the prototype to the instance prototype of the function.
+                var newObject = ObjectInstance.CreateRawObject(newTarget.InstancePrototype);
 
-            // Return the result of the function if it is an object.
-            if (result is ObjectInstance)
-                return (ObjectInstance)result;
+                // Run the function, with the new object as the "this" keyword.
+                var context = ExecutionContext.CreateConstructContext(
+                    engine: this.Engine,
+                    parentScope: this.ParentScope,
+                    thisValue: newObject,
+                    executingFunction: this,
+                    newTarget: newTarget,
+                    functionContainer: null);
+                var result = this.body(context, argumentValues);
 
-            // Otherwise, return the new object.
-            return newObject;
+                // Return the result of the function if it is an object.
+                if (result is ObjectInstance)
+                    return (ObjectInstance)result;
+
+                // Otherwise, return the new object.
+                return newObject;
+            }
+            finally {
+                currentRecursionDepth--;
+            }
         }
 
         /// <summary>

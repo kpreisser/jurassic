@@ -151,7 +151,8 @@ namespace Jurassic.Compiler
         public void GenerateCode()
         {
             // Generate the abstract syntax tree if it hasn't already been generated.
-            if (this.AbstractSyntaxTree == null) {
+            if (this.AbstractSyntaxTree == null)
+            {
                 Parse();
                 Optimize();
             }
@@ -182,7 +183,8 @@ namespace Jurassic.Compiler
 #endif
 
             ILGenerator loggingILGenerator = null;
-            if (this.Options.EnableILAnalysis) {
+            if (this.Options.EnableILAnalysis)
+            {
                 // Replace the generator with one that logs.
                 generator = loggingILGenerator = new LoggingILGenerator(generator);
             }
@@ -213,7 +215,8 @@ namespace Jurassic.Compiler
             // delays in time-critical code).
             CallGeneratedMethodWithNullArguments();
 
-            if (loggingILGenerator != null) {
+            if (loggingILGenerator != null)
+            {
                 // Store the disassembled IL so it can be retrieved for analysis purposes.
                 this.GeneratedMethod.DisassembledIL = loggingILGenerator.ToString();
             }
@@ -229,7 +232,7 @@ namespace Jurassic.Compiler
         protected abstract void CallGeneratedMethodWithNullArguments();
 
         /// <summary>
-        /// Generates an "if (scriptEngine is null) return null;", intended to be generated at
+        /// Generates an "if (executionContext is null) return null;", intended to be generated at
         /// the start of the method. This allows to call the method in order to have the JIT
         /// compiler generate the native code for this method.
         /// </summary>

@@ -16,8 +16,8 @@ namespace Jurassic.Library
 			{
 				new PropertyNameAndValue("apply", new ClrStubFunction(engine.FunctionInstancePrototype, "apply", 2, __STUB__Apply, false), PropertyAttributes.NonEnumerable),
 				new PropertyNameAndValue("call", new ClrStubFunction(engine.FunctionInstancePrototype, "call", 1, __STUB__Call, false), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("bind", new ClrStubFunction(engine.FunctionInstancePrototype, "bind", 1, __STUB__Bind), PropertyAttributes.NonEnumerable),
-				new PropertyNameAndValue("toString", new ClrStubFunction(engine.FunctionInstancePrototype, "toString", 0, __STUB__ToStringJS), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("bind", new ClrStubFunction(engine, "bind", 1, __STUB__Bind), PropertyAttributes.NonEnumerable),
+				new PropertyNameAndValue("toString", new ClrStubFunction(engine, "toString", 0, __STUB__ToStringJS), PropertyAttributes.NonEnumerable),
 			};
 		}
 

@@ -93,8 +93,8 @@ namespace Attribute_Code_Generation
                         foreach (var methodGroup in methodGroups)
                         {
                             output.AppendLine($"\t\t\t\tnew PropertyNameAndValue({methodGroup.PropertyKey}, " +
-                                    $"new ClrStubFunction(engine.FunctionInstancePrototype, \"{methodGroup.FunctionName}\", " +
-                                    $"{methodGroup.JSLength}, {methodGroup.StubName}{(methodGroup.ProducesStackFrame == null ? "" : (", " + (methodGroup.ProducesStackFrame.Value ? "true" : "false")))}), {methodGroup.JSPropertyAttributes}),");
+                                    $"new ClrStubFunction({(methodGroup.ProducesStackFrame is null ? "engine" : "engine.FunctionInstancePrototype")}, \"{methodGroup.FunctionName}\", " +
+                                    $"{methodGroup.JSLength}, {methodGroup.StubName}{(methodGroup.ProducesStackFrame is null ? "" : (", " + (methodGroup.ProducesStackFrame.Value ? "true" : "false")))}), {methodGroup.JSPropertyAttributes}),");
                         }
                         output.AppendLine("\t\t\t};");
                         output.AppendLine("\t\t}");
