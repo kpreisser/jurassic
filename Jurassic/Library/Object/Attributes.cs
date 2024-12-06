@@ -122,15 +122,6 @@ namespace Jurassic.Library
             get;
             set;
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public bool ProducesStackFrame
-        {
-            get;
-            set;
-        } = true;
     }
 
     /// <summary>

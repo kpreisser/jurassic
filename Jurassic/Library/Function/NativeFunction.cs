@@ -69,10 +69,13 @@ namespace Jurassic.Library
                     thisObject = TypeConverter.ToObject(this.Engine, thisObject);
             }
 
+            // For NativeFunction, we immediately push a stack frame. For Clr[Stub]Function, Jurassic
+            // pushes the stack frame e.g. when calling another function by using CallFromNative(), or
+            // when an JavaScriptException is thrown.
             // TODO: The CallType specifies the type of the next method call, but we push the stack frame
             // immediately since we don't have a line number for native methods and this makes constructing
             // Error objects easier since they will already contain the correct stack. However, if the
-            // native method calls a constructor function, the calltype will bei incorrect.
+            // native method calls a constructor function, the calltype will be incorrect.
             // To fix this, we would need to somehow allow to modify the current stack frame.
             if (this.producesStackFrame)
                 this.Engine.PushStackFrame("native", Name, 0, ScriptEngine.CallType.MethodCall);
@@ -80,6 +83,12 @@ namespace Jurassic.Library
             try
             {
                 return this.CallLateBoundCore(thisObject, argumentValues);
+            }
+            catch (JavaScriptException ex)
+            {
+                // Ensure to populate the stack trace now.
+                ex.GetErrorObject(Engine);
+                throw;
             }
             finally
             {

@@ -228,7 +228,7 @@
         /// <param name="thisObj"> The value of <c>this</c> in the context of the function. </param>
         /// <param name="arguments"> The arguments passed to the function, as an array. </param>
         /// <returns> The result from the function call. </returns>
-        [JSInternalFunction(Name = "apply", ProducesStackFrame = false)]
+        [JSInternalFunction(Name = "apply")]
         public object Apply(object thisObj, object arguments)
         {
             // Convert the arguments parameter into an array.
@@ -260,7 +260,7 @@
         /// <param name="thisObj"> The value of <c>this</c> in the context of the function. </param>
         /// <param name="arguments"> Any number of arguments that will be passed to the function. </param>
         /// <returns> The result from the function call. </returns>
-        [JSInternalFunction(Name = "call", Length = 1, ProducesStackFrame = false)]
+        [JSInternalFunction(Name = "call", Length = 1)]
         public object Call(object thisObj, params object[] arguments)
         {
             return this.CallLateBound(thisObj, arguments);

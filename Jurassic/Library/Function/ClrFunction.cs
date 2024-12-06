@@ -13,7 +13,6 @@ namespace Jurassic.Library
     /// </summary>
     public class ClrFunction : FunctionInstance
     {
-        private readonly bool producesStackFrame;
         object thisBinding;
         private Binder callBinder;
         private Binder constructBinder;
@@ -124,12 +123,9 @@ namespace Jurassic.Library
         /// the same name). </param>
         /// <param name="length"> The "typical" number of arguments expected by the function.  Pass
         /// <c>-1</c> to use the maximum of arguments expected by any of the provided methods. </param>
-        /// <param name="producesStackFrame"></param>
-        internal ClrFunction(ObjectInstance prototype, IEnumerable<JSBinderMethod> methods, string name = null, int length = -1,
-                bool producesStackFrame = true)
+        internal ClrFunction(ObjectInstance prototype, IEnumerable<JSBinderMethod> methods, string name = null, int length = -1)
             : base(prototype)
         {
-            this.producesStackFrame = producesStackFrame;
             this.callBinder = new JSBinder(methods);
 
             // Add function properties.
@@ -177,18 +173,19 @@ namespace Jurassic.Library
                 else
                     thisObject = TypeConverter.ToObject(this.Engine, thisObject);
             }
-            
-            // TODO: Check how to procede with the call type.
-            if (this.producesStackFrame)
-                this.Engine.PushStackFrame("native", Name, 0, ScriptEngine.CallType.MethodCall);
             try
             {
                 return this.callBinder.Call(this.Engine, thisBinding != null ? thisBinding : thisObject, arguments);
             }
-            finally
+            catch (JavaScriptException ex)
             {
-                if (this.producesStackFrame)
-                    this.Engine.PopStackFrame();
+                if (ex.FunctionName == null && ex.SourcePath == null && ex.LineNumber == 0)
+                {
+                    ex.FunctionName = this.Name;
+                    ex.SourcePath = "native";
+                    ex.GetErrorObject(Engine);
+                }
+                throw;
             }
         }
 
@@ -200,19 +197,9 @@ namespace Jurassic.Library
         /// <returns> The object that was created. </returns>
         public override ObjectInstance ConstructLateBound(FunctionInstance newTarget, params object[] argumentValues)
         {
-            if (this.producesStackFrame)
-                this.Engine.PushStackFrame("native", Name, 0, ScriptEngine.CallType.MethodCall);
-            try
-            {            
-                if (this.constructBinder == null)
-                    throw new JavaScriptException(ErrorType.TypeError, "Objects cannot be constructed from built-in functions");
-                return (ObjectInstance)this.constructBinder.Call(this.Engine, this, argumentValues);
-            }
-            finally
-            {
-                if (this.producesStackFrame)
-                    this.Engine.PopStackFrame();
-            }
+            if (this.constructBinder == null)
+                throw new JavaScriptException(ErrorType.TypeError, "Objects cannot be constructed from built-in functions");
+            return (ObjectInstance)this.constructBinder.Call(this.Engine, this, argumentValues);
         }
 
         ///// <summary>
