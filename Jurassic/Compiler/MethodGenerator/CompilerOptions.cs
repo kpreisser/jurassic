@@ -29,6 +29,17 @@
         }
 
         /// <summary>
+        /// Gets or sets a value that indicates whether we should force the CLR JIT to compile the
+        /// IL code into native code for each compiled function. If not enabled, just the IL will be
+        /// generated, and the JIT will run once a function is called the first time.
+        /// </summary>
+        public bool ForceJitCompilation
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
         /// Gets or sets a value that indicates what compatibility mode to use.
         /// </summary>
         public CompatibilityMode CompatibilityMode { get; set; }

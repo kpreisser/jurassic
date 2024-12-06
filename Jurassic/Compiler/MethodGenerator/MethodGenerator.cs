@@ -197,11 +197,14 @@ namespace Jurassic.Compiler
             // Initialization code will appear to come from line 1.
             optimizationInfo.MarkSequencePoint(generator, new SourceCodeSpan(1, 1, 1, 1));
 
-            // Generate the null check that returns immediately if scriptEngine is null,
-            // so that we can call it afterwards with null values, in order to have the
-            // JIT compiler generate the native code for it immediately, instead of when
-            // it is called the first time in the script code.
-            GenerateBeginOfMethodNullCheck(generator);
+            if (this.Options.ForceJitCompilation)
+            {
+                // Generate the null check that returns immediately if scriptEngine is null,
+                // so that we can call it afterwards with null values, in order to have the
+                // JIT compiler generate the native code for it immediately, instead of when
+                // it is called the first time in the script code.
+                GenerateBeginOfMethodNullCheck(generator);
+            }
 
             // Generate the IL.
             GenerateCode(generator, optimizationInfo);
@@ -210,10 +213,13 @@ namespace Jurassic.Compiler
             // Create a delegate from the method.
             this.GeneratedMethod = new GeneratedMethod(dynamicMethod.CreateDelegate(GetDelegate()), optimizationInfo.NestedFunctions);
 
-            // Call the method with null arguments to have the JIT generate native code now
-            // instead of when calling the function for the first time (which may lead to
-            // delays in time-critical code).
-            CallGeneratedMethodWithNullArguments();
+            if (this.Options.ForceJitCompilation)
+            {
+                // Call the method with null arguments to have the JIT generate native code now
+                // instead of when calling the function for the first time (which may lead to
+                // delays in time-critical code).
+                CallGeneratedMethodWithNullArguments();
+            }
 
             if (loggingILGenerator != null)
             {
