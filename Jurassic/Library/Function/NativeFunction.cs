@@ -15,7 +15,7 @@ namespace Jurassic.Library
         /// <param name="prototype"></param>
         public NativeFunction(ObjectInstance prototype)
             : this(prototype,
-                  ObjectConstructor.Create(prototype.Engine, prototype.Engine.Object.InstancePrototype),
+                  prototype.Engine.Object.Construct(),
                   null, 0)
         {
         }
@@ -48,12 +48,13 @@ namespace Jurassic.Library
                 this, PropertyAttributes.Configurable | PropertyAttributes.Writable), true);
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="thisObject"></param>
-        /// <param name="argumentValues"></param>
-        /// <returns></returns>
+        /// <inheritdoc/>
+        public override bool IsConstructor 
+        { 
+            get => false; 
+        }
+
+        /// <inheritdoc/>
         public override object CallLateBound(object thisObject, params object[] argumentValues)
         {
             // Check the allowed recursion depth.
@@ -98,6 +99,40 @@ namespace Jurassic.Library
             }
         }
 
+        /// <inheritdoc/>
+        public override ObjectInstance ConstructLateBound(FunctionInstance newTarget, params object[] argumentValues)
+        {
+            if (!this.IsConstructor)
+                throw new JavaScriptException(ErrorType.TypeError, $"{Name} is not a constructor.");
+
+            // Check the allowed recursion depth.
+            if (this.Engine.RecursionDepthLimit > 0 && UserDefinedFunction.currentRecursionDepth >= this.Engine.RecursionDepthLimit)
+                throw new StackOverflowException("The allowed recursion depth of the script engine has been exceeded.");
+
+            // See comments in CallLateBound().
+            if (this.producesStackFrame)
+                this.Engine.PushStackFrame("native", Name, 0, ScriptEngine.CallType.MethodCall);
+            UserDefinedFunction.currentRecursionDepth++;
+            try
+            {
+                // Create a new object and set the prototype to the instance prototype of the function.
+                var newObject = ObjectInstance.CreateRawObject(newTarget.InstancePrototype);
+                return this.ConstructLateBoundCore(newObject, argumentValues);
+            }
+            catch (JavaScriptException ex)
+            {
+                // Ensure to populate the stack trace now.
+                ex.GetErrorObject(Engine);
+                throw;
+            }
+            finally
+            {
+                UserDefinedFunction.currentRecursionDepth--;
+                if (this.producesStackFrame)
+                    this.Engine.PopStackFrame();
+            }
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -105,5 +140,26 @@ namespace Jurassic.Library
         /// <param name="argumentValues"></param>
         /// <returns></returns>
         protected abstract object CallLateBoundCore(object thisObject, params object[] argumentValues);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="newObject"></param>
+        /// <param name="argumentValues"></param>
+        /// <returns></returns>
+        protected virtual ObjectInstance ConstructLateBoundCore(ObjectInstance newObject, params object[] argumentValues)
+        {
+            // Just call the function regularly. This is to support ES5-style class
+            // extensions where no super() call occurs, but instead the super function
+            // is called normally.
+            var result = this.CallLateBoundCore(newObject, argumentValues);
+
+            // Return the result of the function if it is an object.
+            if (result is ObjectInstance objectResult)
+                return objectResult;
+
+            // Otherwise, return the new object.
+            return newObject;
+        }
     }
 }
