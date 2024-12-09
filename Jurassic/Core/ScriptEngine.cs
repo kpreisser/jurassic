@@ -245,6 +245,17 @@ namespace Jurassic
         }
 
         /// <summary>
+        /// Gets or sets a value that indicates whether we should force the CLR JIT to compile the
+        /// IL code into native code for each compiled function. If not enabled, just the IL will be
+        /// generated, and the JIT will run once a function is called the first time.
+        /// </summary>
+        public bool ForceJitCompilation
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
         /// Gets or sets a value that indicates whether the script engine should run in
         /// compatibility mode.
         /// </summary>
@@ -985,6 +996,7 @@ namespace Jurassic
                 ForceStrictMode = this.ForceStrictMode,
                 CompatibilityMode = this.CompatibilityMode,
                 GenerateCancellationChecks = this.GenerateCancellationChecks,
+                ForceJitCompilation = this.ForceJitCompilation,
                 EnableILAnalysis = this.EnableILAnalysis,
             };
         }
